@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="CollabCanvas logo">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#g)"/>
+  <!-- connector: human node ↔ agent node on one canvas -->
+  <line x1="22" y1="24" x2="42" y2="40" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="22" cy="24" r="7.5" fill="#ffffff"/>
+  <circle cx="42" cy="40" r="7.5" fill="#ffffff" opacity="0.9"/>
+  <circle cx="42" cy="40" r="3.2" fill="#8b5cf6"/>
+</svg>
