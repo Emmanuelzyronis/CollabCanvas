@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useCanvasStore } from '../store/store'
 import { runCommand } from '../agent/runner'
 import { isWebMcpAvailable } from '../mcp/registry'
+import { isLlmConfigured } from '../agent/llm'
+import AiSettings from './AiSettings'
 import { Icon } from './icons'
 import type { ActivityKind } from '../types'
 
@@ -54,6 +56,8 @@ function timeAgo(at: number): string {
 
 export default function AgentConsole() {
   const [open, setOpen] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
+  const aiOn = isLlmConfigured()
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [msgs, setMsgs] = useState<ChatMsg[]>([
@@ -104,6 +108,7 @@ export default function AgentConsole() {
 
   return (
     <div className="pointer-events-auto flex h-[min(560px,calc(100vh-6rem))] w-[340px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur">
+      {showSettings && <AiSettings onClose={() => setShowSettings(false)} />}
       {/* header */}
       <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white">
@@ -112,10 +117,19 @@ export default function AgentConsole() {
         <div className="flex-1 leading-tight">
           <div className="text-sm font-semibold text-slate-800">{agentName}</div>
           <div className="flex items-center gap-1 text-[10px] text-slate-400">
-            <span className={`h-1.5 w-1.5 rounded-full ${isWebMcpAvailable() ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-            {isWebMcpAvailable() ? 'WebMCP connected' : 'WebMCP polyfill'}
+            <span className={`h-1.5 w-1.5 rounded-full ${aiOn ? 'bg-violet-500' : isWebMcpAvailable() ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+            {aiOn ? 'Live AI · WebMCP' : isWebMcpAvailable() ? 'WebMCP connected' : 'WebMCP polyfill'}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className="relative flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
+          title="AI model settings"
+        >
+          <Icon name="settings" size={16} />
+          {aiOn && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-violet-500" />}
+        </button>
         <button type="button" onClick={() => setOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" title="Minimize">
           <Icon name="close" size={16} />
         </button>

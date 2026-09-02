@@ -1,6 +1,7 @@
 import { callTool } from '../mcp/registry'
 import { useCanvasStore } from '../store/store'
 import { interpret, type PlannedCall } from './intent'
+import { canUseAi, runWithAi } from './aiRunner'
 
 /**
  * Bridges the natural-language interpreter to the WebMCP registry. Most planned
@@ -61,12 +62,32 @@ function textOf(res: { content?: Array<{ type: string; text?: string }> }): stri
 }
 
 /**
- * Take a human sentence, interpret it, run the resulting tool calls in order,
- * and return a single reply the console can show. If the interpreter produced a
- * canned reply (e.g. "Generating a kanban…") we prefer that; otherwise we fall
- * back to the last tool's text output (useful for summarize/suggest).
+ * Take a human sentence and act on the board. When the user has configured a
+ * model (see llm.ts) we route through the LLM agent loop, which can plan
+ * genuine multi-step tool use; on any AI/transport error we degrade gracefully
+ * to the deterministic rule-based interpreter below, so the app never
+ * hard-fails and works out of the box with no key.
  */
-export async function runCommand(input: string): Promise<RunResult> {
+export async function runCommand(input: string, signal?: AbortSignal): Promise<RunResult> {
+  if (canUseAi()) {
+    try {
+      return await runWithAi(input, signal)
+    } catch (e) {
+      // AI unreachable/misconfigured — fall back but keep the reason in detail.
+      const fallback = await runRuleBased(input)
+      return { ...fallback, detail: fallback.detail ?? (e as Error).message }
+    }
+  }
+  return runRuleBased(input)
+}
+
+/**
+ * Deterministic path: interpret the sentence, run the resulting tool calls in
+ * order, and return a single reply the console can show. If the interpreter
+ * produced a canned reply (e.g. "Generating a kanban…") we prefer that;
+ * otherwise we surface the last tool's text output (useful for summarize/suggest).
+ */
+async function runRuleBased(input: string): Promise<RunResult> {
   const plan = interpret(input)
   if (plan.calls.length === 0) return { ok: true, reply: plan.reply }
 
@@ -76,8 +97,6 @@ export async function runCommand(input: string): Promise<RunResult> {
     if (!last.ok) return last
   }
 
-  // Prefer the interpreter's friendly reply; if it was empty (summarize/suggest),
-  // surface the tool's own text output instead.
   const reply = plan.reply || last.reply
   return { ok: last.ok, reply, detail: last.detail }
 }
