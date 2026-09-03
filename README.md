@@ -123,16 +123,33 @@ await window.CollabCanvas.callTool('generate_layout', {
 
 ## 🏗️ Architecture
 
+```mermaid
+flowchart TB
+    subgraph people["Agents and people"]
+        H["Human<br/>UI · drag · draw"]
+        Aria["Aria<br/>built-in NL console"]
+        Ext["External WebMCP agent<br/>ChatGPT in-app browser · WebMCP Chrome"]
+        GPT["ChatGPT app / connector"]
+    end
+
+    MC["document.modelContext<br/>33 WebMCP tools"]
+    SRV["CollabCanvas MCP server<br/>HTTP / SSE"]
+    Core{{"Shared tool layer<br/>Zustand store actions · author human or agent"}}
+    Canvas[("Canvas state<br/>undo/redo · live activity feed · agent cursor")]
+
+    H --> Core
+    Aria --> Core
+    Ext -->|"getTools / callTool"| MC
+    MC --> Core
+    GPT -. "MCP over HTTP/SSE" .-> SRV
+    SRV -. "real-time sync" .-> Core
+    Core --> Canvas
+
+    classDef road stroke-dasharray:6 4,opacity:0.65
+    class GPT,SRV road
 ```
-document.modelContext  ◄── WebMCP host (ChatGPT / Chrome / external agent)
-        │
-   src/mcp/registry.ts        name→action registry + callTool() + registerAll()
-        │  (both paths converge here)
-   Zustand store actions ◄──── UI buttons & drag handlers (author: 'human')
-        │                └──── WebMCP tools           (author: 'agent')
-        ▼
-   Canvas render (SVG/HTML) + live activity feed + agent cursor
-```
+
+_Solid path = **shipped today** (in-page WebMCP). Dotted path = **roadmap** (a remote MCP server, so ChatGPT itself becomes the agent). Both converge on the **same store actions** — that convergence is the whole design._
 
 - **`src/store/`** — Zustand store; every capability is an action taking an `author` tag. Single source of truth, with undo/redo history.
 - **`src/mcp/`** — 33 tool definitions (`tools/*.ts`), a local registry so tools work even without a native WebMCP host, and `registerAll()` mirroring them onto `document.modelContext`.
@@ -140,6 +157,19 @@ document.modelContext  ◄── WebMCP host (ChatGPT / Chrome / external agent)
 - **`src/canvas/` & `src/ui/`** — the infinite-canvas renderer, coordinate transforms, toolbar, style panel, Aria console, and the Connect guide.
 
 **Principle:** if the UI can do it, a tool exposes it; if a tool can do it, the UI can too. No divergence.
+
+---
+
+## 🗺️ What's next
+
+CollabCanvas is built so its tool layer is **transport-agnostic**: the 33 capabilities are plain store actions, and WebMCP is simply one host sitting in front of them. That keeps the roadmap *additive, not a rewrite*:
+
+- **Remote MCP server → ChatGPT *as* the agent.** Expose the same tool layer as a hosted MCP server (HTTP/SSE) and register it as a ChatGPT app/connector. ChatGPT itself becomes the collaborator — *"Create an onboarding flowchart"* becomes a `generate_layout(...)` call server-side — with no separate in-app agent to maintain.
+- **Real-time multiplayer.** A CRDT layer (Yjs) so multiple humans *and* agents edit one board across devices. This is also the channel the remote-MCP path needs to broadcast server-side tool calls back to every open canvas — the two features reinforce each other.
+- **Persistence & shareable rooms.** Named boards that survive reloads and open from a link.
+- **Multi-agent presence.** Several named agents with distinct cursors, colors, and scoped permissions.
+
+The through-line: *every new surface is just another caller of the same actions.* Add a transport, not a codebase.
 
 ---
 
