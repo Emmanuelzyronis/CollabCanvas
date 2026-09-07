@@ -1,0 +1,47 @@
+export const foundationTokens = {
+  typography: {
+    display: { size: 'var(--cc-font-size-display)', lineHeight: 'var(--cc-line-display)', weight: 'var(--cc-font-weight-semibold)' },
+    title: { size: 'var(--cc-font-size-title)', lineHeight: 'var(--cc-line-title)', weight: 'var(--cc-font-weight-semibold)' },
+    heading: { size: 'var(--cc-font-size-heading)', lineHeight: 'var(--cc-line-heading)', weight: 'var(--cc-font-weight-semibold)' },
+    body: { size: 'var(--cc-font-size-body)', lineHeight: 'var(--cc-line-body)', weight: 'var(--cc-font-weight-regular)' },
+    label: { size: 'var(--cc-font-size-label)', lineHeight: 'var(--cc-line-label)', weight: 'var(--cc-font-weight-medium)' },
+    caption: { size: 'var(--cc-font-size-caption)', lineHeight: 'var(--cc-line-caption)', weight: 'var(--cc-font-weight-regular)' },
+    metadata: { size: 'var(--cc-font-size-metadata)', lineHeight: 'var(--cc-line-metadata)', weight: 'var(--cc-font-weight-regular)' },
+    code: { size: 'var(--cc-font-size-code)', lineHeight: 'var(--cc-line-code)', weight: 'var(--cc-font-weight-regular)' },
+  },
+  breakpoints: {
+    tablet: 'var(--cc-breakpoint-tablet)',
+    desktop: 'var(--cc-breakpoint-desktop)',
+  },
+  colors: {
+    canvas: 'var(--cc-canvas)',
+    panel: 'var(--cc-panel)',
+    panelElevated: 'var(--cc-panel-elevated)',
+    surface: 'var(--cc-surface)',
+    textPrimary: 'var(--cc-text-primary)',
+    textSecondary: 'var(--cc-text-secondary)',
+    textMuted: 'var(--cc-text-muted)',
+    borderSubtle: 'var(--cc-border-subtle)',
+    borderDefault: 'var(--cc-border-default)',
+    borderStrong: 'var(--cc-border-strong)',
+    focus: 'var(--cc-focus)',
+    selected: 'var(--cc-selected)',
+    hover: 'var(--cc-hover)',
+    success: 'var(--cc-success)',
+    warning: 'var(--cc-warning)',
+    error: 'var(--cc-error)',
+    accent: 'var(--cc-accent)',
+    agent: 'var(--agent)',
+    human: 'var(--human)',
+  },
+  motion: {
+    instant: 'var(--cc-duration-instant)',
+    fast: 'var(--cc-duration-fast)',
+    normal: 'var(--cc-duration-normal)',
+    deliberate: 'var(--cc-duration-deliberate)',
+    standard: 'var(--cc-ease-standard)',
+    emphasized: 'var(--cc-ease-emphasized)',
+  },
+} as const
+
+export type FoundationColor = keyof typeof foundationTokens.colors

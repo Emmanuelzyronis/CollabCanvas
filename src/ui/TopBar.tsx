@@ -2,7 +2,7 @@ import { useCanvasStore } from '../store/store'
 import { Icon } from './icons'
 import ConnectGuide from './ConnectGuide'
 
-export default function TopBar() {
+export default function TopBar({ compact = false }: { compact?: boolean }) {
   const camera = useCanvasStore((s) => s.camera)
   const past = useCanvasStore((s) => s.past)
   const future = useCanvasStore((s) => s.future)
@@ -11,12 +11,12 @@ export default function TopBar() {
 
   return (
     <div className="pointer-events-auto flex items-center gap-2">
-      <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-lg backdrop-blur">
+      {!compact && <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-lg backdrop-blur">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 text-white">
           <Icon name="sparkles" size={16} />
         </div>
         <span className="text-sm font-semibold tracking-tight text-slate-800">CollabCanvas</span>
-      </div>
+      </div>}
 
       <div className="flex items-center rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-lg backdrop-blur">
         <button

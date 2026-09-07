@@ -1,9 +1,167 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light dark;
-  --agent: #8b5cf6;
-  --human: #2563eb;
+  color-scheme: light;
+
+  /* Primitive palette: the semantic layer below is the component contract. */
+  --cc-neutral-0: #ffffff;
+  --cc-neutral-50: #f8fafc;
+  --cc-neutral-100: #f1f5f9;
+  --cc-neutral-200: #e2e8f0;
+  --cc-neutral-300: #cbd5e1;
+  --cc-neutral-400: #94a3b8;
+  --cc-neutral-500: #64748b;
+  --cc-neutral-600: #475569;
+  --cc-neutral-700: #334155;
+  --cc-neutral-800: #1e293b;
+  --cc-neutral-900: #0f172a;
+
+  --cc-blue-500: #2563eb;
+  --cc-blue-600: #1d4ed8;
+  --cc-violet-500: #8b5cf6;
+  --cc-violet-600: #7c3aed;
+  --cc-emerald-500: #10b981;
+  --cc-amber-500: #f59e0b;
+  --cc-red-500: #ef4444;
+
+  --cc-space-1: 0.25rem;
+  --cc-space-2: 0.5rem;
+  --cc-space-3: 0.75rem;
+  --cc-space-4: 1rem;
+  --cc-space-5: 1.25rem;
+  --cc-space-6: 1.5rem;
+  --cc-space-8: 2rem;
+  --cc-space-10: 2.5rem;
+  --cc-space-12: 3rem;
+
+  --cc-breakpoint-tablet: 48rem;
+  --cc-breakpoint-desktop: 72rem;
+
+  --cc-font-size-display: 1.875rem;
+  --cc-font-size-title: 1.25rem;
+  --cc-font-size-heading: 0.875rem;
+  --cc-font-size-body: 0.875rem;
+  --cc-font-size-label: 0.75rem;
+  --cc-font-size-caption: 0.75rem;
+  --cc-font-size-metadata: 0.6875rem;
+  --cc-font-size-code: 0.75rem;
+  --cc-line-display: 1.2;
+  --cc-line-title: 1.25;
+  --cc-line-heading: 1.4;
+  --cc-line-body: 1.5;
+  --cc-line-label: 1.5;
+  --cc-line-caption: 1.5;
+  --cc-line-metadata: 1.45;
+  --cc-line-code: 1.5;
+  --cc-font-weight-regular: 400;
+  --cc-font-weight-medium: 500;
+  --cc-font-weight-semibold: 600;
+
+  --cc-radius-control: 0.5rem;
+  --cc-radius-panel: 0.75rem;
+  --cc-radius-card: 0.625rem;
+  --cc-radius-popover: 0.75rem;
+  --cc-radius-pill: 9999px;
+
+  --cc-shadow-subtle: 0 1px 2px rgb(15 23 42 / 0.06);
+  --cc-shadow-panel: 0 4px 12px rgb(15 23 42 / 0.08);
+  --cc-shadow-floating: 0 10px 28px rgb(15 23 42 / 0.12);
+  --cc-shadow-modal: 0 20px 50px rgb(15 23 42 / 0.18);
+
+  --cc-duration-instant: 0ms;
+  --cc-duration-fast: 120ms;
+  --cc-duration-normal: 180ms;
+  --cc-duration-deliberate: 260ms;
+  --cc-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --cc-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Product semantics. Existing --agent/--human consumers remain supported. */
+  --cc-canvas: var(--cc-neutral-50);
+  --cc-panel: var(--cc-neutral-0);
+  --cc-panel-elevated: var(--cc-neutral-0);
+  --cc-surface: var(--cc-neutral-100);
+  --cc-text-primary: var(--cc-neutral-800);
+  --cc-text-secondary: var(--cc-neutral-600);
+  --cc-text-muted: var(--cc-neutral-400);
+  --cc-border-subtle: var(--cc-neutral-100);
+  --cc-border-default: var(--cc-neutral-200);
+  --cc-border-strong: var(--cc-neutral-300);
+  --cc-focus: var(--cc-blue-500);
+  --cc-selected: #dbeafe;
+  --cc-hover: var(--cc-neutral-100);
+  --cc-success: var(--cc-emerald-500);
+  --cc-warning: var(--cc-amber-500);
+  --cc-error: var(--cc-red-500);
+  --cc-accent: var(--cc-blue-500);
+  --agent: var(--cc-violet-500);
+  --human: var(--cc-blue-500);
+}
+
+@theme {
+  --color-canvas: var(--cc-canvas);
+  --color-panel: var(--cc-panel);
+  --color-panel-elevated: var(--cc-panel-elevated);
+  --color-surface: var(--cc-surface);
+  --color-text-primary: var(--cc-text-primary);
+  --color-text-secondary: var(--cc-text-secondary);
+  --color-text-muted: var(--cc-text-muted);
+  --color-border-subtle: var(--cc-border-subtle);
+  --color-border-default: var(--cc-border-default);
+  --color-border-strong: var(--cc-border-strong);
+  --color-focus: var(--cc-focus);
+  --color-selected: var(--cc-selected);
+  --color-hover: var(--cc-hover);
+  --color-success: var(--cc-success);
+  --color-warning: var(--cc-warning);
+  --color-error: var(--cc-error);
+  --color-accent: var(--cc-accent);
+  --color-agent: var(--agent);
+  --color-human: var(--human);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --radius-control: var(--cc-radius-control);
+  --radius-panel: var(--cc-radius-panel);
+  --radius-card: var(--cc-radius-card);
+  --radius-popover: var(--cc-radius-popover);
+  --radius-pill: var(--cc-radius-pill);
+  --shadow-subtle: var(--cc-shadow-subtle);
+  --shadow-panel: var(--cc-shadow-panel);
+  --shadow-floating: var(--cc-shadow-floating);
+  --shadow-modal: var(--cc-shadow-modal);
+  --spacing-control: var(--cc-space-2);
+  --spacing-panel: var(--cc-space-4);
+  --spacing-section: var(--cc-space-6);
+  --spacing-page: var(--cc-space-8);
+  --spacing-chrome: var(--cc-space-3);
+  /* Media-query thresholds must remain static for Lightning CSS/Tailwind. */
+  --breakpoint-tablet: 48rem;
+  --breakpoint-desktop: 72rem;
+  --text-display: var(--cc-font-size-display);
+  --text-title: var(--cc-font-size-title);
+  --text-heading: var(--cc-font-size-heading);
+  --text-body: var(--cc-font-size-body);
+  --text-label: var(--cc-font-size-label);
+  --text-caption: var(--cc-font-size-caption);
+  --text-metadata: var(--cc-font-size-metadata);
+  --text-code: var(--cc-font-size-code);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --cc-canvas: #111827;
+    --cc-panel: #1e293b;
+    --cc-panel-elevated: #273449;
+    --cc-surface: #334155;
+    --cc-text-primary: #f8fafc;
+    --cc-text-secondary: #cbd5e1;
+    --cc-text-muted: #94a3b8;
+    --cc-border-subtle: #334155;
+    --cc-border-default: #475569;
+    --cc-border-strong: #64748b;
+    --cc-selected: #1e40af;
+    --cc-hover: #334155;
+  }
 }
 
 html, body, #root {
@@ -15,4 +173,89 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+:where(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--cc-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Shell layout contracts stay explicit so panel geometry is stable across browsers. */
+.cc-shell-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cc-shell-panel {
+  position: absolute;
+  width: min(20rem, calc(100vw - 2rem));
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform var(--cc-duration-normal) var(--cc-ease-standard);
+}
+
+.cc-shell-panel-left {
+  left: 0;
+  transform: translateX(-100%);
+}
+
+.cc-shell-panel-right {
+  right: 0;
+  transform: translateX(100%);
+}
+
+.cc-shell-panel[data-open="true"] {
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+@media (min-width: 72rem) {
+  .cc-shell-workspace {
+    grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr) minmax(15rem, 18rem);
+  }
+
+  .cc-shell-panel {
+    position: static;
+    width: auto;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.cc-shell-desktop-only {
+  display: none;
+}
+
+.cc-shell-compact-only {
+  display: inline-flex;
+}
+
+@media (min-width: 72rem) {
+  .cc-shell-desktop-only {
+    display: block;
+  }
+
+  .cc-shell-compact-only {
+    display: none;
+  }
 }

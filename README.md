@@ -35,6 +35,7 @@ npm run dev          # → http://localhost:5173
 ```bash
 npm run build        # type-check + production build → dist/
 npm run preview      # serve the production build locally
+npm test              # run the server/domain test suite
 ```
 
 Requires Node 18+.
@@ -121,7 +122,161 @@ await window.CollabCanvas.callTool('generate_layout', {
 
 ---
 
-## 🏗️ Architecture
+## 🧭 Current architecture and implementation status
+
+The repository now has two deliberately distinct surfaces. The browser canvas
+is working editor software and remains a projection/runtime surface. The
+server-side Design Graph is the canonical representation used by application,
+manifest, and agent boundaries.
+
+```mermaid
+flowchart TB
+    subgraph browser["Browser editor (working, non-canonical)"]
+        Human["Human editor"]
+        Aria["Aria console"]
+        Legacy["33 existing canvas WebMCP tools"]
+        Store["Zustand runtime state"]
+        SVG["Existing SVG canvas"]
+        Human --> Store
+        Aria --> Legacy
+        Legacy --> Store
+        Store --> SVG
+    end
+
+    subgraph canonical["Canonical server-side design path"]
+        DB[("PostgreSQL persistence")]
+        Repo["DesignGraphRepository"]
+        Graph["Design Graph<br/>canonical source of truth"]
+        Projection["Canvas projection adapter"]
+        Compiler["Deterministic Manifest compiler"]
+        Manifest["Design Manifest<br/>derived contract"]
+        App["Application services"]
+        Gateway["Agent Gateway<br/>policy boundary"]
+        Semantic["Semantic tools<br/>get_manifest"]
+        DB --> Repo --> Graph
+        Graph --> Projection
+        Projection -. "migration boundary" .-> Store
+        Graph --> Compiler --> Manifest
+        Manifest --> App --> Gateway --> Semantic
+    end
+
+    Store -. "move/delete vertical slice" .-> Projection
+```
+
+The intended mutation direction is:
+
+```text
+Canvas interaction
+    -> canvas/domain application service
+    -> validated Design Graph operation
+    -> persisted graph
+    -> Canvas projection
+    -> existing Zustand/SVG renderer
+```
+
+The browser tools have not been silently converted into semantic graph tools.
+They still operate against the existing Zustand editor model. The graph-backed
+canvas adapter is the explicit migration boundary, and future tool migration
+must route through domain operations rather than making `CanvasElement`
+canonical again.
+
+### Layer progress
+
+| Layer | Result | Status |
+| --- | --- | --- |
+| 1. Persistence | Project → DesignDocument → Page → DesignNode contracts, PostgreSQL migrations, repositories, API CRUD | Implemented |
+| 2. Design Graph | Semantic nodes, hierarchy validation, components/instances, tokens, typography, layout/responsive constraints, interactions, accessibility, assets, intent, graph operations | Implemented; graph is canonical |
+| 3. Manifest compiler | Explicit contract, deterministic compilation and serialization | Implemented; derived artifact only |
+| 4. Manifest API | `GET /api/v1/documents/:documentId/manifest` application/API boundary | Implemented; rich PostgreSQL hydration incomplete |
+| 5. Agent Gateway | Identity boundary, project scope, capability checks, safe gateway errors | Implemented; development authentication only |
+| 6. Semantic WebMCP/MCP | Transport-neutral `get_manifest` over the gateway | Implemented; no standalone MCP transport |
+| 7. Canvas vertical slice | Graph load, projection, move/delete operations, deterministic re-projection | Implemented as a narrow migration slice |
+| 8–11. Trust and handoff | Draft/approved immutability, proposal-first rules, approved-version handoff, implementation/sync contracts | Implemented in typed services; richer repositories are in-memory |
+| 12. InvoiceFlow proof | Canonical fixture, approved version, manifest and gateway handoff | Implemented as development/test orchestration |
+| 13. Design/code synchronization | Implementation reports, semantic impact, pending synchronization proposals | Implemented; no automatic code changes |
+| 14. Structured Copilot | Provider-neutral context and injected planner producing typed proposal operations | Implemented; no AI provider or automatic mutation |
+| 15. Production hardening | Runtime config, audit events, injectable rate limits, health/readiness probes, redacted errors | Implemented as development/test foundations |
+
+### Verification
+
+```text
+npm run typecheck  -> pass
+npm test           -> 101 tests passed across 16 files
+npm run build      -> pass (non-failing Vite chunk-size warning)
+git diff --check   -> pass
+Browser WebMCP    -> original 33 canvas tools preserved
+```
+
+The test suite covers persistence, graph invariants, deterministic
+serialization, manifest compilation, API contracts, gateway policy, semantic
+tool delegation, canvas projection, version/proposal rules, handoff,
+synchronization, Copilot boundaries, and production-hardening seams.
+
+### Architectural decisions
+
+- Design Graph is canonical; canvas coordinates, SVG, React, and Zustand are
+  projections/runtime state.
+- The Manifest is compiled and derived; it is not an editable source of truth
+  and has no separate persistence table.
+- HTTP, semantic tools, and gateway code delegate to application services and
+  never query PostgreSQL or compile manifests directly.
+- Approved versions are immutable; agent/Copilot mutations are proposal-first.
+- The existing 33 browser tools and SVG renderer remain intact so migration can
+  proceed incrementally without breaking the working editor.
+- In-memory authentication, audit, rate limiting, version repositories, and
+  rich-graph fixtures are intentional development/test seams.
+
+### Known limitations
+
+1. The richer Layer 2 Design Graph is not fully hydrated by the current
+   PostgreSQL read path. Requests requiring it may return `GRAPH_UNAVAILABLE`;
+   no fake partial Manifest is returned.
+2. `server/index.ts` starts the base PostgreSQL CRUD API. Manifest and gateway
+   services are injectable boundaries, not yet a production deployment wiring.
+3. Authentication is development-only. There is no production API-key, OAuth,
+   workload identity, revocation store, or external identity provider.
+4. Audit events and rate limits are in-memory. Durable audit storage and shared
+   distributed limits are deferred.
+5. `/readyz` is a process-level probe and does not yet check PostgreSQL health.
+6. There is no standalone remote MCP server; `server/mcp/` is transport-neutral.
+7. The existing Zustand/SVG editor remains a projection model and not all 33
+   browser tools have migrated to graph operations.
+8. Version, synchronization, and Copilot repositories are development/test
+   implementations and do not provide durable production history.
+
+### Build issue resolved
+
+The first Layer 15 test run reported `100 passed, 1 failed`. `MemoryAuditSink`
+used `structuredClone()` when reading records, which removed the frozen audit
+context invariant. The sink now freezes event and context on record and read;
+the final result is **101/101 tests passing**.
+
+The production build still emits a non-failing Vite warning that the main
+JavaScript chunk exceeds 500 kB after minification. This is a bundle
+optimization task, not a build failure, and was intentionally left outside the
+hardening scope.
+
+### Remaining roadmap
+
+1. Complete PostgreSQL hydration for the richer Design Graph and wire the
+   production application composition.
+2. Replace development authentication with managed machine identity and secret
+   management.
+3. Move audit events to durable storage and rate limiting to a shared policy.
+4. Add dependency-aware readiness checks, observability, backups, deployment
+   controls, and security review.
+5. Migrate additional browser tools through the Canvas Projection boundary only
+   after graph write/version/proposal contracts are stable.
+
+Deferred by design: write-capable agent tools, proposal approval UI, version
+history APIs, code generation, Copilot providers, synchronization execution,
+remote MCP transport, billing, marketplace features, Figma parity, and canvas
+replacement.
+
+## 🏗️ Legacy browser architecture (preserved)
+
+This diagram describes the existing browser editor only. Its Zustand store is
+runtime state for the canvas projection; it is not the canonical Design Graph.
 
 ```mermaid
 flowchart TB
@@ -151,7 +306,7 @@ flowchart TB
 
 _Solid path = **shipped today** (in-page WebMCP). Dotted path = **roadmap** (a remote MCP server, so ChatGPT itself becomes the agent). Both converge on the **same store actions** — that convergence is the whole design._
 
-- **`src/store/`** — Zustand store; every capability is an action taking an `author` tag. Single source of truth, with undo/redo history.
+- **`src/store/`** — Zustand runtime store; every capability is an action taking an `author` tag, with undo/redo history. It remains a browser projection, not canonical persistence.
 - **`src/mcp/`** — 33 tool definitions (`tools/*.ts`), a local registry so tools work even without a native WebMCP host, and `registerAll()` mirroring them onto `document.modelContext`.
 - **`src/agent/`** — a rule-based natural-language interpreter (`intent.ts` → `runner.ts`) so the built-in Aria console turns plain English into tool calls, plus the first-run welcome seed.
 - **`src/canvas/` & `src/ui/`** — the infinite-canvas renderer, coordinate transforms, toolbar, style panel, Aria console, and the Connect guide.
@@ -160,26 +315,135 @@ _Solid path = **shipped today** (in-page WebMCP). Dotted path = **roadmap** (a r
 
 ---
 
-## 🗺️ What's next
+## 🗺️ Frontend roadmap (deferred)
 
-CollabCanvas is built so its tool layer is **transport-agnostic**: the 33 capabilities are plain store actions, and WebMCP is simply one host sitting in front of them. That keeps the roadmap *additive, not a rewrite*:
+The browser tool layer remains transport-agnostic and useful for the current
+demo, but these items are not part of the completed server architecture:
 
-- **Remote MCP server → ChatGPT *as* the agent.** Expose the same tool layer as a hosted MCP server (HTTP/SSE) and register it as a ChatGPT app/connector. ChatGPT itself becomes the collaborator — *"Create an onboarding flowchart"* becomes a `generate_layout(...)` call server-side — with no separate in-app agent to maintain.
-- **Real-time multiplayer.** A CRDT layer (Yjs) so multiple humans *and* agents edit one board across devices. This is also the channel the remote-MCP path needs to broadcast server-side tool calls back to every open canvas — the two features reinforce each other.
-- **Persistence & shareable rooms.** Named boards that survive reloads and open from a link.
-- **Multi-agent presence.** Several named agents with distinct cursors, colors, and scoped permissions.
+- Remote MCP transport and ChatGPT connector.
+- CRDT-backed real-time multiplayer across devices.
+- Shareable persisted browser rooms.
+- Multi-agent presence with scoped permissions.
 
-The through-line: *every new surface is just another caller of the same actions.* Add a transport, not a codebase.
+Any future browser capability must preserve the canonical path above and must
+not promote Zustand or `CanvasElement` back to source-of-truth status.
 
 ---
 
 ## 🧱 Tech stack
 
-Vite 8 · React 18 · TypeScript 5 (strict) · Zustand 5 · Tailwind v4 · [`@mcp-b/global`](https://www.npmjs.com/package/@mcp-b/global) WebMCP polyfill · nanoid
+Vite 8 · React 18 · TypeScript 5 (strict) · Zustand 5 · Tailwind v4 · PostgreSQL (`pg`) · Vitest · `pg-mem` test database · [`@mcp-b/global`](https://www.npmjs.com/package/@mcp-b/global) WebMCP polyfill · nanoid
 
 ## ☁️ Deployment
 
 Deployed as a fully static SPA to **Azure Static Web Apps** (WebMCP runs entirely in the browser — no backend required). SPA fallback routing is configured in `staticwebapp.config.json`. See that file and the deploy notes for the exact `swa deploy` flow.
+
+## Persistence slice (development)
+
+The first server-side persistence slice lives under `server/` and uses PostgreSQL as its production database. It currently persists the following graph boundary:
+
+`Project → DesignDocument → Page → DesignNode`
+
+The API is intentionally limited to project, document, page, and node creation/retrieval plus the internal manifest retrieval boundary. It does not implement production authentication or general version/proposal HTTP APIs. The versioning application boundary and approved-version gateway handoff exist separately for the richer graph, while the existing browser canvas and all 33 WebMCP tools remain client-side and unchanged; they are not yet the canonical persistence adapter.
+
+Manifest retrieval is now available as an internal document-scoped application/API boundary:
+
+`GET /api/v1/documents/:documentId/manifest`
+
+It requires a richer `DesignGraphRepository`; the current PostgreSQL slice does not yet hydrate all Layer 2 entities, so production requests return `GRAPH_UNAVAILABLE` until that persistence read path is added. This endpoint is not the Agent Gateway.
+
+Layer 6 adds a separate, transport-neutral semantic `get_manifest` tool under
+`server/mcp/`. It delegates through the existing Agent Gateway and is not
+merged into the browser WebMCP registry: the original canvas/editor surface
+remains exactly 33 tools. A standalone MCP transport and production machine
+authentication are intentionally deferred; see `docs/semantic-webmcp.md`.
+
+The graph-backed canvas vertical slice is documented in
+`docs/canvas-vertical-slice.md`. It loads a canonical graph, applies move and
+delete through the application/domain boundary, and re-projects the result into
+the unchanged Zustand/SVG editor. The richer graph remains unavailable from
+the default PostgreSQL path until full hydration is implemented.
+
+Versioning and proposal semantics are documented in `docs/versioning.md`.
+Drafts are mutable, approved graph snapshots are immutable, and proposed
+semantic mutations must use a current approved base before producing a new
+draft. The version repository is currently in-memory for the richer graph;
+PostgreSQL schema support exists in migration `002_versioning.sql`.
+
+Agent handoff is documented in `docs/agent-handoff.md`. The current gateway
+can expose a read-only approved-version handoff with manifest and provenance;
+implementation reporting and full synchronization remained deferred at that
+layer. Layer 13 now adds their controlled foundation below.
+
+The Layer 12 InvoiceFlow proof is documented in `docs/invoiceflow.md`. It
+provisions the canonical fixture through the typed development repositories,
+creates and approves an immutable version, and retrieves the resulting
+manifest through the existing project-scoped Agent Gateway. It is a
+development/test proof only while PostgreSQL rich-graph hydration remains
+unimplemented.
+
+Layer 13 adds the synchronization foundation documented in
+`docs/design-code-synchronization.md`: implementation status reports,
+semantic impact between approved versions, and pending non-mutating sync
+proposals. The gateway exposes explicit development capabilities for these
+operations; automatic code changes and production persistence remain deferred.
+
+Layer 14 adds the structured Copilot foundation in `docs/copilot.md`.
+Copilot context is assembled from an approved Design Graph, an injected
+planner returns typed domain operations, and the existing versioning service
+stores a pending proposal. No AI provider or automatic mutation is included.
+
+Layer 15 adds the production-hardening foundation documented in
+`docs/production-hardening.md`: validated runtime configuration, safe gateway
+audit events, injectable rate limiting, health/readiness probes, and redacted
+unexpected-error logging. Production identity, durable audit storage,
+distributed limits, and deployment infrastructure remain deferred.
+
+Endpoints:
+
+```text
+POST /api/v1/projects
+GET  /api/v1/projects/:projectId
+POST /api/v1/projects/:projectId/documents
+GET  /api/v1/documents/:documentId
+POST /api/v1/documents/:documentId/pages
+GET  /api/v1/pages/:pageId
+POST /api/v1/pages/:pageId/nodes
+GET  /api/v1/documents/:documentId/manifest
+```
+
+The internal Agent Gateway foundation adds separate read-only routes for
+development/test credentials:
+
+```text
+GET /api/v1/gateway/manifest?projectId=:projectId&documentId=:documentId
+GET /api/v1/gateway/approved-version?projectId=:projectId&documentId=:documentId&versionId=:versionId
+```
+
+These gateway routes are not enabled by the default production server wiring
+and do not provide production authentication or an Agent Gateway deployment.
+
+Run PostgreSQL locally (Docker example):
+
+```bash
+docker run --name collabcanvas-postgres \
+  -e POSTGRES_PASSWORD=collabcanvas \
+  -e POSTGRES_DB=collabcanvas \
+  -p 5432:5432 -d postgres:16
+```
+
+Then apply migrations and start the API:
+
+```bash
+DATABASE_URL=postgres://postgres:collabcanvas@localhost:5432/collabcanvas npm run db:migrate
+DATABASE_URL=postgres://postgres:collabcanvas@localhost:5432/collabcanvas npm run api
+```
+
+The API listens on `http://localhost:8787` by default. The isolated test suite uses an in-memory PostgreSQL-compatible database, so tests do not require a shared local database:
+
+```bash
+npm test
+```
 
 ## 📄 License
 
