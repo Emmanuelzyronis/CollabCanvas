@@ -13,7 +13,7 @@ import type {
   ResponsiveConstraint,
   StateMetadata,
   TypographyDefinition,
-} from './graph-types'
+} from './graph-types.js'
 
 export const DESIGN_MANIFEST_VERSION = '1'
 

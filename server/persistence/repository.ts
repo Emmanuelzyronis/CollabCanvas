@@ -9,7 +9,7 @@ import type {
   Page,
   PageGraph,
   Project,
-} from '../domain/contracts'
+} from '../domain/contracts.js'
 
 export interface DesignRepository {
   createProject(project: Project): Promise<Project>
@@ -23,18 +23,17 @@ export interface DesignRepository {
 }
 
 /**
- * Source for the richer canonical graph used by manifest compilation.
- * Layer 1's relational repository does not implement this yet because its
- * schema only hydrates the initial page/node persistence slice.
+ * Source for the richer canonical graph used by manifest compilation and the
+ * graph-backed workspace boundary.
  */
 export interface DesignGraphRepository {
   getDesignGraph(documentId: string): Promise<DesignGraph | null>
 }
 
 /**
- * Mutation boundary for the richer canonical graph. The current PostgreSQL
- * repository intentionally does not implement this until full graph hydration
- * is available; the in-memory implementation supports the vertical slice.
+ * Mutation boundary for the richer canonical graph. PostgreSQL stores the
+ * complete aggregate snapshot until all rich entities have dedicated tables;
+ * the in-memory implementation remains useful for isolated tests.
  */
 export interface DesignGraphWriter {
   saveDesignGraph(graph: DesignGraph): Promise<DesignGraph>

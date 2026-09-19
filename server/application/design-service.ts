@@ -11,10 +11,10 @@ import type {
   Page,
   PageGraph,
   Project,
-} from '../domain/contracts'
-import { DomainError } from '../domain/errors'
-import { NODE_TYPES } from '../domain/graph-types'
-import type { DesignRepository } from '../persistence/repository'
+} from '../domain/contracts.js'
+import { DomainError } from '../domain/errors.js'
+import { NODE_TYPES } from '../domain/graph-types.js'
+import type { DesignRepository } from '../persistence/repository.js'
 
 export interface DesignServiceDeps {
   id?: () => string

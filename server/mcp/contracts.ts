@@ -1,6 +1,6 @@
-import type { DesignManifest } from '../domain/manifest-types'
-import type { ImplementationStatus, ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types'
-import type { GatewayCapability, GatewayErrorCode } from '../gateway/contracts'
+import type { DesignManifest } from '../domain/manifest-types.js'
+import type { ImplementationStatus, ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types.js'
+import type { GatewayCapability, GatewayErrorCode } from '../gateway/contracts.js'
 
 export interface SemanticToolInputSchema {
   readonly type: 'object'

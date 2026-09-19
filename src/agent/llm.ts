@@ -51,7 +51,7 @@ export interface ChatResponse {
   choices: ChatChoice[]
 }
 
-const ENV = import.meta.env as Record<string, string | undefined>
+const ENV = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
 
 /** Env-provided defaults for local dev only (inlined at build; empty in prod unless set). */
 const ENV_DEFAULTS: Partial<LlmConfig> = {

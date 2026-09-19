@@ -1,8 +1,8 @@
-import type { DesignGraph, DesignNode, JsonObject, JsonValue, LayoutConstraints } from './contracts'
-import { validateDesignGraph } from './graph-validation'
-import { DESIGN_MANIFEST_VERSION, type DesignManifest, type ManifestComponentInstance, type ManifestGeometry, type ManifestNode } from './manifest-types'
+import type { DesignGraph, DesignNode, JsonObject, JsonValue, LayoutConstraints } from './contracts.js'
+import { validateDesignGraph } from './graph-validation.js'
+import { DESIGN_MANIFEST_VERSION, type DesignManifest, type ManifestComponentInstance, type ManifestGeometry, type ManifestNode } from './manifest-types.js'
 
-export { serializeDesignManifest } from './manifest-serialization'
+export { serializeDesignManifest } from './manifest-serialization.js'
 
 export type ManifestCompilationCode = 'MISSING_GRAPH_CONTEXT' | 'GRAPH_CONTEXT_MISMATCH'
 

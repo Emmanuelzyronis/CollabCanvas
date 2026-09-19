@@ -1779,6 +1779,15 @@ The frontend rebuild should happen in vertical layers.
 38. resilience
 39. security review
 
+### Acceptance levels for frontend slices
+
+Frontend work has two explicit acceptance levels:
+
+1. **Level 1 — Boundary Acceptance.** The slice's local contract and architecture are correct in isolation, proven with the appropriate unit, contract, projection, component, and type checks.
+2. **Level 2 — Vertical Integration Acceptance.** The slice is wired through its intended live application path and verified with canonical runtime dependencies, such as context, API/application services, domain state, projection, and UI/runtime.
+
+The required level is determined by the slice. Pure architectural or boundary slices may be complete at Level 1 when they are not intended to be live product behavior. A slice that establishes or changes a live product path, context boundary, persistence read, or user-facing workflow must pass Level 2 before it is considered fully complete. Isolated tests alone are not sufficient for those slices.
+
 ---
 
 # 48. Layer 46 — Definition of Done
@@ -1804,6 +1813,79 @@ The frontend architecture is successfully implemented when:
 - existing 33 WebMCP tools remain operational during migration
 - Zustand/SVG remains projection/runtime state
 - no frontend component becomes a hidden alternate source of truth
+
+### Current execution state
+
+Layers 1 through 17 are implemented as the shell, graph-backed workspace,
+selection, layers tree, inspector, property-editing, token-reference editing,
+and semantic diff slices. Layer 13 established the
+first graph-backed node editing command: validated node layout updates flow
+through the application service, scoped API, and canvas controller before the
+projection is refreshed. Layer 14 adds a dedicated resize command with
+minimum-dimension validation, live canvas gesture commit, and canonical
+reprojection. Layer 15 adds narrowly scoped graph-backed property editing for
+node identity and semantic labels; edits cross the application service and
+scoped update API, then replace the projected graph with the canonical response.
+Layer 16 adds a deterministic graph-projected token catalog and slot-level
+inspector selectors. Replacements and removals emit `tokenRefs` patches through
+the existing application command boundary; the inspector does not persist or
+invent token state.
+Layer 17 adds semantic diff projection and a live version comparison surface.
+The domain comparison includes deterministic field-level before/after values
+while preserving the existing entity-level change contract used by
+synchronization services. Read-only list/compare API routes, PostgreSQL version
+hydration, and the frontend query boundary now connect the panel to canonical
+version state through `fromVersion` and `toVersion` URL parameters.
+
+### B7 Level 2 acceptance
+
+B7 (Project/Page context and canonical Design Graph hydration) is accepted at
+Level 2. A real workspace request is verified through the PostgreSQL
+repository, `CanvasGraphApplicationService`, HTTP API route, and frontend query
+boundary. Project/document/page scope is enforced, complete graph identities
+and relationships are preserved, and loading, unavailable, and invalid-graph
+states remain explicit. The existing B8-B12 projections consume that hydrated
+graph; no PageGraph conversion or fixture fallback is used in the production
+path. Rich graph persistence currently uses the canonical `design_graphs`
+JSONB aggregate until dedicated relational tables are introduced.
+
+### Layer 18 — Frontend Trust & Intelligence (EMM-66)
+
+Layer 18 establishes the frontend trust boundary for intelligence and
+agent-facing consumers. `buildIntelligenceContext()` accepts only the
+`WorkspaceProvider` graph and its explicit availability state, then delegates
+validation and identity/relationship projection to `projectDesignGraph()`.
+Consumers receive one of `TRUSTED`, `GRAPH_LOADING`, `GRAPH_UNAVAILABLE`, or
+`GRAPH_INVALID`; non-trusted states expose no graph, selection, or relationship
+context and never fabricate fallback data. Trusted context preserves project,
+document, and page scope, stable node IDs, parent/child relationships, and the
+selected node IDs derived from ephemeral runtime selection. Zustand remains
+limited to runtime/editor state. The Agent Console is gated by this boundary
+before executing intelligence commands, while existing WebMCP tools and the
+B8-B12 projections remain unchanged.
+
+Layer 18 acceptance criteria:
+
+- only a validated hydrated `DesignGraph` can produce trusted intelligence context
+- unavailable/loading/invalid graph states cannot become fabricated context
+- project/document/page scope and graph relationships remain stable
+- intelligence consumers cannot treat `INVALID_GRAPH` as valid state
+- runtime selection is input context only; it is not canonical graph storage
+- existing B8-B12, WebMCP, and agent behavior remain operational
+
+The Layer 18 trust surface now includes a live `VersionTrustPanel` backed by
+scoped version commands. It loads canonical versions for the active
+project/document, exposes draft creation and draft approval, and renders
+approved versions as immutable. The existing `DesignProposal` model remains
+the proposal-first path for AI/external changes; its approval creates a new
+draft and stale bases return `VERSION_CONFLICT`. All UI commands use the
+versioning application service through scoped HTTP routes; the panel never
+mutates graph or version state locally.
+
+Every subsequent layer task uses the repository workflow: concise layer prompt,
+single-layer implementation, focused tests plus `make check` and compile/build,
+focused exit verification, surgical remediation if needed, re-verification, then
+stop before starting the next layer.
 
 ---
 
@@ -1897,24 +1979,49 @@ The frontend architecture is successfully implemented when:
 The next implementation sequence should therefore be:
 
 ```text
-01  Frontend tokens + visual language
-02  Layout primitives
-03  Application shell
-04  Responsive shell
-05  Graph projection layer
-06  Canvas shell
-07  Selection + layer tree
-08  Inspector
-09  Real graph-backed editing
-10  Version/approval UI
-11  Semantic diff
-12  Copilot proposal UI
-13  Agent Center
-14  Mobile optimization
-15  Accessibility/performance
-16  E2E + visual regression
-17  Production readiness
+01  Layer 18: version and approval trust UI
+02  Proposal preview, validation, and approval flow
+03  Copilot proposal UI over the structured Copilot service
+04  Agent Center and implementation-status UI
+05  Synchronization proposal UI
+06  Mobile optimization
+07  Accessibility and performance hardening
+08  E2E and visual regression
+09  Production readiness
 ```
 
 **Important:** this is not a request to rewrite the backend. It is the frontend architecture that sits on top of the Layers 1–15 foundation already implemented.
 
+Layer 19 Copilot proposal creation keeps Copilot as a proposal producer. Natural
+language is grounded in the trusted canonical DesignGraph, approved version,
+workspace scope, and validated selection IDs. Supported typed operations are
+deterministic `moveNode` and `deleteNode`; unsupported or ambiguous requests
+return clarification without executable state. Ready proposals enter the
+existing `ProposalReviewPanel`; approval remains owned by
+`VersioningApplicationService`.
+
+### Layer 19 hardening
+
+The proposal boundary is exposed through the dedicated
+`POST /api/v1/projects/:projectId/documents/:documentId/copilot/proposals`
+HTTP contract. The route validates request shape, while
+`CopilotApplicationService` independently grounds every request in the current
+approved server version. The optional frontend `trustedVersionId` is only a
+context hint; it is checked against the requested base version and never
+authorizes graph contents. Project, document, page, selected node,
+relationship, operation, and approved-version scope are revalidated
+server-side.
+
+Unavailable or invalid graphs, stale versions, scope mismatches, nonexistent
+nodes, ambiguous references, unsupported intent, and malformed operations do
+not create executable proposals. They return deterministic errors or a typed
+`clarification` preview. Proposal retrieval and approval remain scoped to the
+same project/document, and stale approval returns `VERSION_CONFLICT` without a
+canonical graph mutation.
+
+Copilot review navigation preserves the active `projectId`, `documentId`, and
+`pageId` query context while adding `proposalId`. The Agent Console is not an
+alternate execution path: proposal creation is surfaced as an activity entry
+awaiting review, and only `ProposalReviewPanel` plus the versioning application
+service can approve or reject it. The supported proposal vocabulary remains
+limited to `moveNode` and `deleteNode`.

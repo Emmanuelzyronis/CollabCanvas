@@ -1,19 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCanvasStore } from '../store/store'
+import { describeSelection } from './selection/selectionModel'
 import { screenToWorld, worldToScreen } from './coords'
 import { boundsOf, elementRect, hitTest, rectIntersects, type Rect } from '../store/geometry'
 import { ConnectorView, ShapeView } from './ElementView'
 import { GRID_GAP, TYPE_DEFAULTS } from '../constants'
 import type { CanvasElement, ElementType } from '../types'
+import type { EditorToolKind } from '../features/editor/editorModel'
+import { specFor } from '../features/editor/editorModel'
+import { useEditorToolStore } from '../features/editor/editorToolStore'
 
 type Interaction =
   | { mode: 'idle' }
   | { mode: 'panning'; lastX: number; lastY: number }
-  | { mode: 'moving'; lastWx: number; lastWy: number; ids: string[] }
-  | { mode: 'resizing'; id: string; handle: string; orig: { x: number; y: number; w: number; h: number }; startWx: number; startWy: number }
+  | { mode: 'moving'; lastWx: number; lastWy: number; ids: string[]; moved: boolean }
+  | { mode: 'resizing'; id: string; handle: string; orig: { x: number; y: number; w: number; h: number }; startWx: number; startWy: number; moved: boolean }
   | { mode: 'creating'; id: string; startWx: number; startWy: number }
+  | { mode: 'inserting'; kind: EditorToolKind; startWx: number; startWy: number }
   | { mode: 'marquee'; startWx: number; startWy: number }
   | { mode: 'connecting'; from: string }
+
+export interface CanvasRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface CanvasEditorHandlers {
+  onResize?: (nodeId: string, width: number, height: number, x?: number, y?: number) => Promise<void> | void
+  onCommitMove?: (ids: readonly string[]) => Promise<void> | void
+  onDeleteNodes?: (ids: readonly string[]) => Promise<void> | void
+  onDuplicateNodes?: (ids: readonly string[]) => Promise<void> | void
+  onInsertNode?: (kind: EditorToolKind, rect: CanvasRect) => Promise<void> | void
+  onCommitText?: (nodeId: string, text: string) => Promise<void> | void
+  onHistoryUndo?: () => Promise<void> | void
+  onHistoryRedo?: () => Promise<void> | void
+}
 
 const HANDLES: { id: string; fx: number; fy: number; cursor: string }[] = [
   { id: 'nw', fx: 0, fy: 0, cursor: 'nwse-resize' },
@@ -34,24 +57,45 @@ function normalizeRect(x0: number, y0: number, x1: number, y1: number): Rect {
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
 }
 
-export default function Canvas() {
+export default function Canvas({ onResize, onCommitMove, onDeleteNodes, onDuplicateNodes, onInsertNode, onCommitText, onHistoryUndo, onHistoryRedo }: CanvasEditorHandlers) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const interaction = useRef<Interaction>({ mode: 'idle' })
   const spaceRef = useRef(false)
+  const handlers = useRef<CanvasEditorHandlers>({ onResize, onCommitMove, onDeleteNodes, onDuplicateNodes, onInsertNode, onCommitText, onHistoryUndo, onHistoryRedo })
+  handlers.current = { onResize, onCommitMove, onDeleteNodes, onDuplicateNodes, onInsertNode, onCommitText, onHistoryUndo, onHistoryRedo }
 
   const elements = useCanvasStore((s) => s.elements)
   const order = useCanvasStore((s) => s.order)
   const comments = useCanvasStore((s) => s.comments)
   const selection = useCanvasStore((s) => s.selection)
+  const hoveredNodeId = useCanvasStore((s) => s.hoveredNodeId)
+  const selectionInteraction = useCanvasStore((s) => s.selectionInteraction)
   const camera = useCanvasStore((s) => s.camera)
   const activeTool = useCanvasStore((s) => s.activeTool)
   const editingId = useCanvasStore((s) => s.editingId)
   const agent = useCanvasStore((s) => s.agent)
+  const editorTool = useEditorToolStore((s) => s.tool)
+  const setEditorTool = useEditorToolStore((s) => s.setTool)
 
+  const [textDraft, setTextDraft] = useState<string | null>(null)
+  const cancelEditRef = useRef(false)
   const [marquee, setMarquee] = useState<Rect | null>(null)
+  const [insertPreview, setInsertPreview] = useState<Rect | null>(null)
   const [connectDraft, setConnectDraft] = useState<{ from: string; x: number; y: number } | null>(null)
   const [commentDraft, setCommentDraft] = useState<{ x: number; y: number; text: string } | null>(null)
+  const selectionState = describeSelection(selection, hoveredNodeId, selectionInteraction)
+  const selectedNodeIds = useMemo(() => new Set(selection), [selection])
+
+  useEffect(() => {
+    cancelEditRef.current = false
+    if (!editingId) {
+      setTextDraft(null)
+      return
+    }
+    const element = useCanvasStore.getState().elements[editingId]
+    setTextDraft(element ? element.text : '')
+  }, [editingId])
 
   const worldFromEvent = useCallback((e: { clientX: number; clientY: number }) => {
     const rect = svgRef.current!.getBoundingClientRect()
@@ -112,14 +156,17 @@ export default function Canvas() {
       }
       const mod = e.metaKey || e.ctrlKey
       if (mod && e.key.toLowerCase() === 'z') {
+        // Undo/redo is canonical graph history. The legacy local board stack is
+        // never consulted, so the shortcut is honest even when unavailable.
         e.preventDefault()
-        if (e.shiftKey) st.redo()
-        else st.undo()
+        const run = e.shiftKey ? handlers.current.onHistoryRedo : handlers.current.onHistoryUndo
+        if (run) void run()
         return
       }
       if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
-        st.redo()
+        const run = handlers.current.onHistoryRedo
+        if (run) void run()
         return
       }
       if (mod && e.key.toLowerCase() === 'a') {
@@ -129,13 +176,18 @@ export default function Canvas() {
       }
       if (mod && e.key.toLowerCase() === 'd') {
         e.preventDefault()
-        if (st.selection.length) st.duplicateElements(st.expandGroups(st.selection))
+        if (st.selection.length) {
+          const ids = st.expandGroups(st.selection)
+          if (handlers.current.onDuplicateNodes) void handlers.current.onDuplicateNodes(ids)
+          else st.duplicateElements(ids)
+        }
         return
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (st.selection.length) {
           e.preventDefault()
-          st.deleteElements(st.expandGroups(st.selection))
+          if (handlers.current.onDeleteNodes) void handlers.current.onDeleteNodes(st.expandGroups(st.selection))
+          else st.deleteElements(st.expandGroups(st.selection))
         }
         return
       }
@@ -143,6 +195,7 @@ export default function Canvas() {
         st.setEditing(null)
         st.clearSelection()
         st.setActiveTool('select')
+        useEditorToolStore.getState().setTool('select')
         setConnectDraft(null)
         setCommentDraft(null)
         return
@@ -152,20 +205,26 @@ export default function Canvas() {
         const step = e.shiftKey ? 10 : 1
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
         const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
-        st.moveElements(st.expandGroups(st.selection), dx, dy)
+        const ids = st.expandGroups(st.selection)
+        st.moveElements(ids, dx, dy, { record: !handlers.current.onCommitMove })
+        if (handlers.current.onCommitMove) void handlers.current.onCommitMove(ids)
         return
       }
       const shortcuts: Record<string, () => void> = {
         v: () => st.setActiveTool('select'),
         h: () => st.setActiveTool('hand'),
-        r: () => st.setActiveTool('rectangle'),
-        o: () => st.setActiveTool('ellipse'),
-        d: () => st.setActiveTool('diamond'),
-        t: () => st.setActiveTool('text'),
-        s: () => st.setActiveTool('sticky'),
-        f: () => st.setActiveTool('frame'),
-        c: () => st.setActiveTool('connector'),
-        m: () => st.setActiveTool('comment'),
+        ...(!handlers.current.onInsertNode
+          ? {
+              r: () => st.setActiveTool('rectangle'),
+              o: () => st.setActiveTool('ellipse'),
+              d: () => st.setActiveTool('diamond'),
+              t: () => st.setActiveTool('text'),
+              s: () => st.setActiveTool('sticky'),
+              f: () => st.setActiveTool('frame'),
+              c: () => st.setActiveTool('connector'),
+              m: () => st.setActiveTool('comment'),
+            }
+          : {}),
       }
       if (!mod && shortcuts[e.key.toLowerCase()]) shortcuts[e.key.toLowerCase()]()
     }
@@ -184,32 +243,47 @@ export default function Canvas() {
     if (e.button === 2) return
     const st = useCanvasStore.getState()
     const { x: wx, y: wy } = worldFromEvent(e)
-    const panMode = spaceRef.current || st.activeTool === 'hand' || e.button === 1
+    const panMode = spaceRef.current || editorTool === 'hand' || st.activeTool === 'hand' || e.button === 1
     svgRef.current!.setPointerCapture(e.pointerId)
 
     if (panMode) {
+      st.setSelectionInteraction('idle')
       interaction.current = { mode: 'panning', lastX: e.clientX, lastY: e.clientY }
       return
     }
 
+    if (editorTool !== 'select') {
+      st.clearSelection()
+      st.setHoveredNode(null)
+      st.setSelectionInteraction('idle')
+      interaction.current = { mode: 'inserting', kind: editorTool, startWx: wx, startWy: wy }
+      setInsertPreview({ minX: wx, minY: wy, maxX: wx, maxY: wy, width: 0, height: 0, cx: wx, cy: wy })
+      return
+    }
+
+    // With the canonical editor mounted, never fall through to hidden local element creation.
+    if (st.activeTool !== 'select' && st.activeTool !== 'hand') st.setActiveTool('select')
+
     if (st.activeTool === 'select') {
       const hit = topmostAt(wx, wy)
+      st.setHoveredNode(hit?.id ?? null)
       if (hit) {
         let sel: string[]
         if (e.shiftKey) {
           st.select(hit.id, true)
           sel = useCanvasStore.getState().selection
         } else if (!st.selection.includes(hit.id)) {
-          sel = st.expandGroups([hit.id])
+          sel = [hit.id]
           st.setSelection(sel)
         } else {
           sel = st.selection
         }
         const ids = st.expandGroups(sel)
-        st.pushHistory()
-        interaction.current = { mode: 'moving', lastWx: wx, lastWy: wy, ids }
+        st.setSelectionInteraction('dragging')
+        interaction.current = { mode: 'moving', lastWx: wx, lastWy: wy, ids, moved: false }
       } else {
         if (!e.shiftKey) st.clearSelection()
+        st.setSelectionInteraction('selecting')
         interaction.current = { mode: 'marquee', startWx: wx, startWy: wy }
         setMarquee(normalizeRect(wx, wy, wx, wy))
       }
@@ -251,7 +325,14 @@ export default function Canvas() {
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const ref = interaction.current
-    if (ref.mode === 'idle') return
+    if (ref.mode === 'idle') {
+      const st = useCanvasStore.getState()
+      if (st.activeTool === 'select') {
+        const { x: wx, y: wy } = worldFromEvent(e)
+        st.setHoveredNode(topmostAt(wx, wy)?.id ?? null)
+      }
+      return
+    }
     const st = useCanvasStore.getState()
     if (ref.mode === 'panning') {
       st.panBy(e.clientX - ref.lastX, e.clientY - ref.lastY)
@@ -261,9 +342,16 @@ export default function Canvas() {
     }
     const { x: wx, y: wy } = worldFromEvent(e)
     if (ref.mode === 'moving') {
-      st.moveElements(ref.ids, wx - ref.lastWx, wy - ref.lastWy, { record: false })
+      const dx = wx - ref.lastWx
+      const dy = wy - ref.lastWy
+      if (dx !== 0 || dy !== 0) {
+        ref.moved = true
+        st.moveElements(ref.ids, dx, dy, { record: false })
+      }
       ref.lastWx = wx
       ref.lastWy = wy
+    } else if (ref.mode === 'inserting') {
+      setInsertPreview(normalizeRect(ref.startWx, ref.startWy, wx, wy))
     } else if (ref.mode === 'creating') {
       st.updateElement(ref.id, { width: wx - ref.startWx, height: wy - ref.startWy }, { record: false })
     } else if (ref.mode === 'resizing') {
@@ -282,12 +370,13 @@ export default function Canvas() {
       if (ref.handle.includes('s')) h = ref.orig.h + dy
       w = Math.max(8, w)
       h = Math.max(8, h)
+      if (dx !== 0 || dy !== 0) ref.moved = true
       st.updateElement(ref.id, { x, y, width: w, height: h }, { record: false })
     } else if (ref.mode === 'marquee') {
       const r = normalizeRect(ref.startWx, ref.startWy, wx, wy)
       setMarquee(r)
       const sel = st.getElements().filter((el) => rectIntersects(elementRect(el), r)).map((el) => el.id)
-      st.setSelection(st.expandGroups(sel))
+      st.setSelection(sel)
     } else if (ref.mode === 'connecting') {
       setConnectDraft((d) => (d ? { ...d, x: wx, y: wy } : d))
     }
@@ -318,6 +407,19 @@ export default function Canvas() {
         st.setActiveTool('select')
         st.setSelection([ref.id])
       }
+    } else if (ref.mode === 'inserting') {
+      const spec = specFor(ref.kind)
+      const { x: endWx, y: endWy } = worldFromEvent(e)
+      const dragRect = normalizeRect(ref.startWx, ref.startWy, endWx, endWy)
+      const width = dragRect.width
+      const height = dragRect.height
+      const isClick = Math.abs(width) < 8 && Math.abs(height) < 8
+      const rect = isClick
+        ? { x: ref.startWx - spec.defaultWidth / 2, y: ref.startWy - spec.defaultHeight / 2, width: spec.defaultWidth, height: spec.defaultHeight }
+        : { x: dragRect.minX, y: dragRect.minY, width: dragRect.width, height: dragRect.height }
+      setInsertPreview(null)
+      setEditorTool('select')
+      if (handlers.current.onInsertNode) void handlers.current.onInsertNode(ref.kind, rect)
     } else if (ref.mode === 'connecting') {
       const { x: wx, y: wy } = worldFromEvent(e)
       const hit = topmostAt(wx, wy)
@@ -328,7 +430,14 @@ export default function Canvas() {
     } else if (ref.mode === 'marquee') {
       setMarquee(null)
     }
+    if (ref.mode === 'resizing' && ref.moved && handlers.current.onResize) {
+      const resized = st.elements[ref.id]
+      if (resized) void Promise.resolve(handlers.current.onResize(ref.id, resized.width, resized.height, resized.x, resized.y)).catch(() => undefined)
+    } else if (ref.mode === 'moving' && ref.moved && handlers.current.onCommitMove && ref.ids.length) {
+      void handlers.current.onCommitMove(ref.ids)
+    }
     interaction.current = { mode: 'idle' }
+    st.setSelectionInteraction(useCanvasStore.getState().editingId ? 'editing' : 'idle')
   }
 
   const onDoubleClick = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -337,13 +446,9 @@ export default function Canvas() {
     const st = useCanvasStore.getState()
     if (hit && hit.type !== 'connector' && hit.type !== 'line') {
       st.setSelection([hit.id])
-      st.pushHistory()
       st.setEditing(hit.id)
     }
   }
-
-  const cursor =
-    activeTool === 'hand' ? 'grab' : activeTool === 'select' ? 'default' : activeTool === 'comment' ? 'copy' : 'crosshair'
 
   const gridStyle: React.CSSProperties = {
     backgroundImage: 'radial-gradient(circle, rgba(100,116,139,0.35) 1px, transparent 1px)',
@@ -354,18 +459,53 @@ export default function Canvas() {
   // selection overlay geometry (screen space)
   const selEls = selection.map((id) => elements[id]).filter(Boolean) as CanvasElement[]
   const selBounds = boundsOf(selEls)
+  const hoveredElement = hoveredNodeId ? elements[hoveredNodeId] : null
   const editingEl = editingId ? elements[editingId] : null
 
+  const cursor =
+    editorTool === 'hand' || activeTool === 'hand'
+      ? 'grab'
+      : editorTool !== 'select'
+        ? 'crosshair'
+        : activeTool === 'comment'
+          ? 'copy'
+          : selectionInteraction === 'dragging'
+            ? 'grabbing'
+            : hoveredElement
+              ? 'move'
+              : 'default'
+
+  /** Commit the inline text draft through the canonical update command. */
+  const commitInlineText = () => {
+    const target = editingEl
+    const value = textDraft
+    useCanvasStore.getState().setEditing(null)
+    setTextDraft(null)
+    if (cancelEditRef.current) {
+      cancelEditRef.current = false
+      return
+    }
+    if (target && value !== null && value !== target.text) void handlers.current.onCommitText?.(target.id, value)
+  }
+
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-slate-50">
+    <div ref={containerRef} className="relative h-full w-full select-none overflow-hidden bg-slate-50">
       <div className="pointer-events-none absolute inset-0" style={gridStyle} />
       <svg
         ref={svgRef}
         className="absolute inset-0 h-full w-full"
         style={{ cursor, touchAction: 'none' }}
+        tabIndex={0}
+        aria-label="Canvas interaction surface"
+        data-selection-mode={selectionState.mode}
+        data-selection-interaction={selectionState.interaction}
+        data-primary-node-id={selectionState.primaryNodeId ?? undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerLeave={() => {
+          if (interaction.current.mode === 'idle') useCanvasStore.getState().setHoveredNode(null)
+        }}
         onDoubleClick={onDoubleClick}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -379,16 +519,29 @@ export default function Canvas() {
         </defs>
 
         <g transform={`translate(${-camera.x * camera.zoom}, ${-camera.y * camera.zoom}) scale(${camera.zoom})`}>
+          {insertPreview ? <rect data-insert-preview="true" x={insertPreview.minX} y={insertPreview.minY} width={insertPreview.width} height={insertPreview.height} fill="rgba(37,99,235,0.10)" stroke="#2563eb" strokeWidth={1.5} strokeDasharray="5 4" rx={3} pointerEvents="none" /> : null}
           {order.map((id) => {
             const el = elements[id]
             if (!el) return null
-            if (el.type === 'connector' || el.type === 'line') return <ConnectorView key={id} el={el} elements={elements} />
-            return <ShapeView key={id} el={el} />
+            return (
+              <g key={id} data-canvas-node-id={id} data-selected={selectedNodeIds.has(id) ? 'true' : undefined} data-hovered={hoveredNodeId === id ? 'true' : undefined}>
+                {el.type === 'connector' || el.type === 'line'
+                  ? <ConnectorView el={el} elements={elements} />
+                  : <ShapeView el={el} />}
+              </g>
+            )
           })}
         </g>
 
         {/* screen-space overlay */}
         <g>
+          {hoveredElement && !selectedNodeIds.has(hoveredElement.id) && (() => {
+            const bounds = elementRect(hoveredElement)
+            const topLeft = worldToScreen(camera, bounds.minX, bounds.minY)
+            const bottomRight = worldToScreen(camera, bounds.maxX, bounds.maxY)
+            return <rect data-selection-hover="true" x={topLeft.x - 1} y={topLeft.y - 1} width={bottomRight.x - topLeft.x + 2} height={bottomRight.y - topLeft.y + 2} fill="none" stroke="#2563eb" strokeWidth={1} strokeDasharray="3 3" rx={2} pointerEvents="none" />
+          })()}
+
           {marquee && (() => {
             const tl = worldToScreen(camera, marquee.minX, marquee.minY)
             const br = worldToScreen(camera, marquee.maxX, marquee.maxY)
@@ -411,7 +564,7 @@ export default function Canvas() {
             const h = br.y - tl.y
             return (
               <g>
-                <rect x={tl.x - 1} y={tl.y - 1} width={w + 2} height={h + 2} fill="none" stroke="#2563eb" strokeWidth={1.5} rx={2} />
+                <rect data-selection-overlay="true" x={tl.x - 1} y={tl.y - 1} width={w + 2} height={h + 2} fill="none" stroke="#2563eb" strokeWidth={1.5} rx={2} />
                 {selection.length === 1 &&
                   !editingId &&
                   HANDLES.map((hd) => {
@@ -420,6 +573,7 @@ export default function Canvas() {
                     return (
                       <rect
                         key={hd.id}
+                        data-resize-handle={hd.id}
                         x={hx - 5}
                         y={hy - 5}
                         width={10}
@@ -436,9 +590,9 @@ export default function Canvas() {
                           const el = st.elements[id]
                           if (!el) return
                           const rr = elementRect(el)
-                          st.pushHistory()
+                          st.setSelectionInteraction('resizing')
                           const { x, y } = worldFromEvent(ev)
-                          interaction.current = { mode: 'resizing', id, handle: hd.id, orig: { x: rr.minX, y: rr.minY, w: rr.width, h: rr.height }, startWx: x, startWy: y }
+                          interaction.current = { mode: 'resizing', id, handle: hd.id, orig: { x: rr.minX, y: rr.minY, w: rr.width, h: rr.height }, startWx: x, startWy: y, moved: false }
                           svgRef.current!.setPointerCapture(ev.pointerId)
                         }}
                       />
@@ -481,13 +635,22 @@ export default function Canvas() {
         return (
           <textarea
             autoFocus
-            defaultValue={editingEl.text}
-            onChange={(e) => useCanvasStore.getState().updateElement(editingEl.id, { text: e.target.value }, { record: false })}
-            onBlur={() => useCanvasStore.getState().setEditing(null)}
+            data-inline-text-editor="true"
+            value={textDraft ?? editingEl.text}
+            onChange={(e) => setTextDraft(e.target.value)}
+            onBlur={commitInlineText}
             onKeyDown={(e) => {
-              if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey)) {
+              if (e.key === 'Escape') {
                 e.preventDefault()
+                // Cancel: drop the draft without writing a canonical mutation.
+                cancelEditRef.current = true
                 useCanvasStore.getState().setEditing(null)
+                setTextDraft(null)
+                return
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                commitInlineText()
               }
             }}
             className="absolute resize-none rounded-md border-2 border-blue-500 bg-white/95 p-1 shadow-lg outline-none"

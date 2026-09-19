@@ -62,10 +62,11 @@ future manifest compilation, not a replacement for the current canvas UI.
 ## Persistence and local development
 
 Layer 1 PostgreSQL persistence remains the durable `Project → DesignDocument →
-Page → DesignNode` foundation. The richer Layer 2 graph aggregate is currently
-validated and serialized in the domain boundary; its additional entities will
-be persisted in a later schema slice rather than duplicating or bypassing the
-existing repository.
+Page → DesignNode` foundation. Migration `003_design_graphs.sql` adds one
+document-scoped canonical `DesignGraph` JSONB aggregate so the complete graph
+can be hydrated through `CanvasGraphApplicationService` without fabricating a
+`DesignGraph` from the partial page graph. The aggregate is validated for
+project/document/page ownership before it crosses the API boundary.
 
 Run the existing database migration with:
 

@@ -60,10 +60,11 @@ This route is not enabled by the default production server wiring.
 
 ## Current limitation
 
-The development implementation uses the in-memory version repository. The
-PostgreSQL schema exists in `002_versioning.sql`, but full hydration of the
-richer Layer 2 graph is not implemented. No production handoff is fabricated
-when the canonical graph is unavailable.
+The development implementation uses the in-memory version repository for the
+rich handoff orchestration. PostgreSQL graph hydration is now available for the
+workspace path through migration 003; version/proposal history remains a
+separate persistence limitation. No handoff is fabricated when the canonical
+graph is unavailable.
 
 This layer does not implement implementation reporting, synchronization,
 framework adapters, code generation, production credentials, or automatic

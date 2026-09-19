@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import type { DesignVersion, VersionComparison } from '../domain/version-types'
-import { DomainError } from '../domain/errors'
-import { IMPLEMENTATION_STATUSES, synchronizationImpact, type ImplementationStatus, type ImplementationStatusReport, type SynchronizationProposal } from '../domain/synchronization-types'
-import type { ImplementationStatusRepository, SynchronizationProposalRepository } from '../persistence/synchronization-repository'
+import type { DesignVersion, VersionComparison } from '../domain/version-types.js'
+import { DomainError } from '../domain/errors.js'
+import { IMPLEMENTATION_STATUSES, synchronizationImpact, type ImplementationStatus, type ImplementationStatusReport, type SynchronizationProposal } from '../domain/synchronization-types.js'
+import type { ImplementationStatusRepository, SynchronizationProposalRepository } from '../persistence/synchronization-repository.js'
 
 export interface ReportImplementationStatusInput {
   projectId: string

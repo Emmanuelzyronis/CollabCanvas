@@ -23,3 +23,5 @@ dist-ssr
 # Build / test artifacts
 *.tsbuildinfo
 .playwright-mcp/
+.vercel
+.env*

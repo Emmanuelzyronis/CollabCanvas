@@ -1,5 +1,5 @@
-import type { JsonObject, JsonValue } from './contracts'
-import type { DesignManifest } from './manifest-types'
+import type { JsonObject, JsonValue } from './contracts.js'
+import type { DesignManifest } from './manifest-types.js'
 
 function sortKeys(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(sortKeys)

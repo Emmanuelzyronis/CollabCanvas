@@ -1,4 +1,4 @@
-import type { DesignDocument, DesignGraph, DesignNode, Page, Project } from '../contracts'
+import type { DesignDocument, DesignGraph, DesignNode, Page, Project } from '../contracts.js'
 
 const timestamp = '2026-09-05T00:00:00.000Z'
 

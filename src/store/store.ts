@@ -13,6 +13,7 @@ import type {
   Tool,
 } from '../types'
 import { AGENT_COLOR, AGENT_NAME, MAX_ZOOM, MIN_ZOOM, TYPE_DEFAULTS } from '../constants'
+import { reduceSelection, type SelectionInteraction } from '../canvas/selection/selectionModel'
 import { boundsOf, computeAlign, computeDistribute, computeGrid, elementRect, type AlignEdge } from './geometry'
 
 const BASE_ELEMENT: Omit<CanvasElement, 'id' | 'type' | 'createdAt' | 'updatedAt' | 'author'> = {
@@ -31,6 +32,9 @@ const BASE_ELEMENT: Omit<CanvasElement, 'id' | 'type' | 'createdAt' | 'updatedAt
   fontWeight: 400,
   textColor: '#0f172a',
   textAlign: 'center',
+  fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+  lineHeight: 1.25,
+  borderRadius: 8,
   from: null,
   to: null,
   groupId: null,
@@ -67,6 +71,8 @@ export interface CanvasStore {
   order: string[]
   comments: Comment[]
   selection: string[]
+  hoveredNodeId: string | null
+  selectionInteraction: SelectionInteraction
   camera: Camera
   viewport: { width: number; height: number }
   activeTool: Tool
@@ -113,6 +119,8 @@ export interface CanvasStore {
   select: (id: string, additive?: boolean) => void
   clearSelection: () => void
   selectAll: () => void
+  setHoveredNode: (id: string | null) => void
+  setSelectionInteraction: (interaction: SelectionInteraction) => void
 
   // --- comments ---
   addComment: (c: { x: number; y: number; text: string; author?: Author; targetId?: string | null }) => string
@@ -137,7 +145,7 @@ export interface CanvasStore {
 
   // --- board lifecycle ---
   getSnapshot: () => BoardSnapshot
-  loadSnapshot: (snap: BoardSnapshot, author?: Author) => void
+  loadSnapshot: (snap: BoardSnapshot, author?: Author, opts?: { record?: boolean }) => void
   clearBoard: (author?: Author) => void
 }
 
@@ -155,6 +163,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   order: [],
   comments: [],
   selection: [],
+  hoveredNodeId: null,
+  selectionInteraction: 'idle',
   camera: { x: -200, y: -150, zoom: 1 },
   viewport: { width: 1280, height: 800 },
   activeTool: 'select',
@@ -204,7 +214,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         comments: prev.comments,
         past: s.past.slice(0, -1),
         future: [...s.future, current],
-        selection: s.selection.filter((id) => prev.elements[id]),
+        selection: reduceSelection(s.selection, { type: 'reconcile' }, prev.order),
+        hoveredNodeId: s.hoveredNodeId && prev.elements[s.hoveredNodeId] ? s.hoveredNodeId : null,
+        selectionInteraction: 'idle',
       }
     })
   },
@@ -221,6 +233,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         comments: next.comments,
         future: s.future.slice(0, -1),
         past: [...s.past, current],
+        selection: reduceSelection(s.selection, { type: 'reconcile' }, next.order),
+        hoveredNodeId: s.hoveredNodeId && next.elements[s.hoveredNodeId] ? s.hoveredNodeId : null,
+        selectionInteraction: 'idle',
       }
     })
   },
@@ -263,7 +278,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set((s) => {
       const next = { ...s.elements }
       for (const c of clones) next[c.id] = c
-      return { elements: next, order: [...s.order, ...clones.map((c) => c.id)], selection: clones.map((c) => c.id) }
+      const order = [...s.order, ...clones.map((c) => c.id)]
+      return { elements: next, order, selection: reduceSelection(s.selection, { type: 'replace', nodeIds: clones.map((c) => c.id) }, order) }
     })
     get().logActivity(author, 'create', `Duplicated ${clones.length} element(s)`, clones.map((c) => c.id))
     return clones.map((c) => c.id)
@@ -328,7 +344,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         if ((el.from && idSet.has(el.from)) || (el.to && idSet.has(el.to))) delete elements[el.id]
       }
       const order = s.order.filter((id) => elements[id])
-      return { elements, order, selection: s.selection.filter((id) => elements[id]) }
+      return {
+        elements,
+        order,
+        selection: reduceSelection(s.selection, { type: 'reconcile' }, order),
+        hoveredNodeId: s.hoveredNodeId && elements[s.hoveredNodeId] ? s.hoveredNodeId : null,
+        selectionInteraction: 'idle',
+      }
     })
     get().logActivity(author, 'delete', `Deleted ${ids.length} element(s)`, [])
   },
@@ -409,20 +431,25 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     get().logActivity(author, 'arrange', `Arranged ${els.length} elements in a grid`, ids)
   },
 
-  setSelection: (ids) => set({ selection: [...new Set(ids)] }),
+  setSelection: (ids) => set((s) => ({ selection: reduceSelection(s.selection, { type: 'replace', nodeIds: ids }, s.order) })),
 
   select: (id, additive = false) => {
     set((s) => {
-      if (additive) {
-        return { selection: s.selection.includes(id) ? s.selection.filter((x) => x !== id) : [...s.selection, id] }
-      }
-      return { selection: [id] }
+      const action = additive ? { type: 'toggle' as const, nodeId: id } : { type: 'replace' as const, nodeIds: [id] }
+      return { selection: reduceSelection(s.selection, action, s.order) }
     })
   },
 
-  clearSelection: () => set({ selection: [] }),
+  clearSelection: () => set((s) => ({ selection: reduceSelection(s.selection, { type: 'clear' }, s.order) })),
 
-  selectAll: () => set((s) => ({ selection: [...s.order] })),
+  selectAll: () => set((s) => ({ selection: reduceSelection(s.selection, { type: 'select-all' }, s.order) })),
+
+  setHoveredNode: (id) => set((s) => {
+    const hoveredNodeId = id && s.elements[id] ? id : null
+    return hoveredNodeId === s.hoveredNodeId ? {} : { hoveredNodeId }
+  }),
+
+  setSelectionInteraction: (interaction) => set((s) => interaction === s.selectionInteraction ? {} : { selectionInteraction: interaction }),
 
   addComment: (c) => {
     get().pushHistory()
@@ -494,8 +521,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (author) state.logActivity(author, 'view', `Focused on an element`, [id])
   },
 
-  setActiveTool: (tool) => set({ activeTool: tool, editingId: null }),
-  setEditing: (id) => set({ editingId: id }),
+  setActiveTool: (tool) => set((s) => ({ activeTool: tool, editingId: null, hoveredNodeId: tool === 'select' ? s.hoveredNodeId : null, selectionInteraction: 'idle' })),
+  setEditing: (id) => set((s) => {
+    const editingId = id && s.elements[id] ? id : null
+    return { editingId, selectionInteraction: editingId ? 'editing' : 'idle' }
+  }),
 
   setAgentPresence: (patch) => set((s) => ({ agent: { ...s.agent, ...patch } })),
 
@@ -506,15 +536,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   getSnapshot: () => snapshot(get()),
 
-  loadSnapshot: (snap, author = 'human') => {
-    get().pushHistory()
-    set({ elements: structuredClone(snap.elements), order: [...snap.order], comments: structuredClone(snap.comments), selection: [] })
+  loadSnapshot: (snap, author = 'human', opts = {}) => {
+    // Canonical graph reconciliation must not create a second, local undo
+    // stack: the graph is the only history authority.
+    if (opts.record !== false) get().pushHistory()
+    set({ elements: structuredClone(snap.elements), order: [...snap.order], comments: structuredClone(snap.comments), selection: [], hoveredNodeId: null, selectionInteraction: 'idle' })
     get().logActivity(author, 'generate', `Loaded a board (${snap.order.length} elements)`, [])
   },
 
   clearBoard: (author = 'human') => {
     get().pushHistory()
-    set({ elements: {}, order: [], comments: [], selection: [] })
+    set({ elements: {}, order: [], comments: [], selection: [], hoveredNodeId: null, selectionInteraction: 'idle' })
     get().logActivity(author, 'delete', 'Cleared the board', [])
   },
 }))

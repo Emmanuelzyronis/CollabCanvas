@@ -1,4 +1,4 @@
-import { AgentGateway, GatewayError, type GatewayImplementationStatusRequest, type GatewaySynchronizationProposalRequest } from '../gateway'
+import { AgentGateway, GatewayError, type GatewayImplementationStatusRequest, type GatewaySynchronizationProposalRequest } from '../gateway/index.js'
 import {
   type ProposeSyncToolInput,
   type ProposeSyncToolResponse,
@@ -8,8 +8,8 @@ import {
   type SemanticToolErrorResponse,
   type SemanticToolInputSchema,
   type SemanticToolResult,
-} from './contracts'
-import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types'
+} from './contracts.js'
+import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types.js'
 
 type GatewaySynchronization = Pick<AgentGateway, 'reportImplementationStatus' | 'proposeSynchronization'>
 

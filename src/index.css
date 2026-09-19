@@ -201,6 +201,10 @@ textarea {
 /* Shell layout contracts stay explicit so panel geometry is stable across browsers. */
 .cc-shell-workspace {
   grid-template-columns: minmax(0, 1fr);
+  /* A definite single row keeps the canvas column from ballooning when graph
+     content is inserted. Without this the implicit auto row grows past the
+     viewport and percentage-height children resolve against that inflated row. */
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .cc-shell-panel {

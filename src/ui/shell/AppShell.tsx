@@ -4,6 +4,16 @@ import LeftPanel from './LeftPanel'
 import RightInspector from './RightInspector'
 import StatusBar from './StatusBar'
 import ShellTopBar from './TopBar'
+import type { InspectorProjection, LayersProjection } from '../../graph/graphProjection'
+import type { GraphAvailability } from '../../workspace'
+import type { DesignNode } from '../../../server/domain/contracts'
+
+export interface ShellWorkspaceContext {
+  project: { name: string } | null
+  document: { name: string } | null
+  page: { name: string } | null
+  availability: GraphAvailability
+}
 
 export const SHELL_Z_INDEX = {
   canvas: 'z-0',
@@ -12,7 +22,7 @@ export const SHELL_Z_INDEX = {
   overlay: 'z-40',
 } as const
 
-export default function AppShell({ children }: { children: ReactNode }) {
+export default function AppShell({ children, layersProjection, inspectorProjection, onUpdateNode, workspace }: { children: ReactNode; layersProjection?: LayersProjection; inspectorProjection?: InspectorProjection; onUpdateNode?: (nodeId: string, patch: Partial<Omit<DesignNode, 'id' | 'pageId'>>) => Promise<void>; workspace?: ShellWorkspaceContext }) {
   const [leftOpen, setLeftOpen] = useState(false)
   const [rightOpen, setRightOpen] = useState(false)
 
@@ -69,11 +79,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="grid h-full min-h-0 w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-canvas text-text-primary">
-      <ShellTopBar onToggleLeft={toggleLeft} onToggleRight={toggleRight} leftOpen={leftOpen} rightOpen={rightOpen} />
+      <ShellTopBar onToggleLeft={toggleLeft} onToggleRight={toggleRight} leftOpen={leftOpen} rightOpen={rightOpen} workspace={workspace} />
 
       <div className="cc-shell-workspace relative grid min-h-0 min-w-0 overflow-hidden">
         <aside id="project-navigation-panel" data-open={leftOpen} className={clsx(SHELL_Z_INDEX.panels, 'cc-shell-panel cc-shell-panel-left inset-y-0 border-r border-border-default bg-panel shadow-floating')} aria-label="Project navigation">
-          <LeftPanel onClose={closeLeft} />
+          <LeftPanel onClose={closeLeft} layersProjection={layersProjection} />
         </aside>
 
         <main className={clsx(SHELL_Z_INDEX.canvas, 'relative min-h-0 min-w-0 overflow-hidden bg-canvas')} aria-label="Canvas workspace">
@@ -81,13 +91,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </main>
 
         <aside id="inspector-panel" data-open={rightOpen} className={clsx(SHELL_Z_INDEX.panels, 'cc-shell-panel cc-shell-panel-right inset-y-0 border-l border-border-default bg-panel shadow-floating')} aria-label="Inspector">
-          <RightInspector onClose={closeRight} />
+          <RightInspector onClose={closeRight} inspectorProjection={inspectorProjection} onUpdateNode={onUpdateNode} />
         </aside>
 
         {(leftOpen || rightOpen) ? <button type="button" tabIndex={-1} aria-label="Close open panel" className="cc-shell-compact-only absolute inset-0 z-10 cursor-default bg-slate-950/15" onClick={leftOpen ? closeLeft : closeRight} /> : null}
       </div>
 
-      <StatusBar />
+      <StatusBar workspaceStatus={workspace?.availability} />
     </div>
   )
 }

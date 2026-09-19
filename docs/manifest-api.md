@@ -92,13 +92,12 @@ Current mappings are:
 
 ## Persistence limitation
 
-Layer 1 PostgreSQL currently hydrates the initial project/document/page/node
-slice only. It does not yet persist and hydrate every Layer 2 graph entity
-(components, tokens, typography, assets, and intents). Therefore the API does
-not fabricate a partial manifest from those rows. It requires a typed
-`DesignGraphRepository`; the current in-memory implementation is used by tests
-and development fixtures. Production PostgreSQL hydration belongs to a later
-persistence slice.
+PostgreSQL hydrates the complete canonical graph through the document-scoped
+`design_graphs` JSONB aggregate introduced by migration 003. The API does not
+fabricate a partial manifest from normalized page/node rows. The aggregate is
+validated for project/document/page identity and graph integrity before
+compilation. Dedicated relational tables for rich entities remain future
+persistence work.
 
 ## Boundaries and deferrals
 

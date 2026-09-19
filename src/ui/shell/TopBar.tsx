@@ -1,14 +1,20 @@
 import { IconButton, Inline, Text } from '../foundation'
 import { Icon } from '../icons'
+import type { ShellWorkspaceContext } from './AppShell'
 
 interface TopBarProps {
   onToggleLeft: () => void
   onToggleRight: () => void
   leftOpen: boolean
   rightOpen: boolean
+  workspace?: ShellWorkspaceContext
 }
 
-export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen }: TopBarProps) {
+export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpen, workspace }: TopBarProps) {
+  const contextLabel = workspace?.project && workspace.document && workspace.page
+    ? `${workspace.project.name} / ${workspace.document.name} / ${workspace.page.name}`
+    : workspace?.availability === 'GRAPH_LOADING' ? 'Loading design context' : 'Design context unavailable'
+  const statusLabel = workspace?.availability === 'GRAPH_AVAILABLE' ? 'Design ready' : workspace?.availability === 'GRAPH_LOADING' ? 'Loading…' : workspace?.availability ?? 'No workspace context'
   return (
     <header className="relative z-30 flex min-h-14 items-center justify-between gap-3 border-b border-border-default bg-panel px-3 py-2 shadow-subtle sm:px-4" aria-label="Application top bar">
       <Inline gap="2" className="min-w-0">
@@ -19,12 +25,12 @@ export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpe
         </div>
         <div className="min-w-0">
           <Text as="div" role="heading" className="truncate">CollabCanvas</Text>
-          <Text as="div" role="metadata" muted className="truncate">Canvas workspace · Draft</Text>
+          <Text as="div" role="metadata" muted className="truncate">{statusLabel}</Text>
         </div>
       </Inline>
 
       <div className="hidden min-w-0 flex-1 justify-center px-4 md:flex">
-        <Text as="div" role="label" muted className="truncate">Welcome canvas</Text>
+        <Text as="div" role="label" muted className="truncate">{contextLabel}</Text>
       </div>
 
       <Inline gap="2" className="shrink-0 cc-shell-compact-only">

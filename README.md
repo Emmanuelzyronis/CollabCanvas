@@ -8,6 +8,57 @@ You draw, arrange, and comment. Your agent — **Aria** — creates shapes, gene
 
 ---
 
+## 🧭 Current strategy — Human Editor First
+
+CollabCanvas is being developed through **fast vertical slices**. The
+immediate priority is **human editor usability** rather than completing the
+agent ecosystem or architectural layers independently. DesignGraph,
+versioning, WebMCP, Copilot, manifest, and gateway capabilities must converge
+behind the human editor rather than delaying it.
+
+- **Strategy** — Human Editor First
+- **Execution model** — Fast Vertical Slices
+- **Immediate objective** — Make CollabCanvas a usable visual design editor
+  before expanding the agent ecosystem.
+- **Design targets** — frontend/web pages, flyers/posters, and logos over one
+  coherent editor with preset document start points.
+- **Engineering principle** — Architecture exists to support the human editing
+  experience; it is not the product milestone by itself. Architecture work is
+  only considered successful when it contributes to an executable human
+  editing workflow (open → create → add → select → edit → save → reload →
+  continue).
+
+Current slice sequence (internally EMM issues; the product slice is the unit
+of progress):
+
+```text
+EMM-95  Blank workspace + canonical command path  (this slice)
+EMM-96  Visible element insertion
+EMM-97  Persistent canvas editing (move/resize/delete/duplicate/reorder)
+EMM-98  Layout engine
+EMM-99  Inspector + Layers
+EMM-100 Assets + Typography + Tokens + Pages (Website/Flyer/Logo presets)  (preset start designs: this slice)
+EMM-101 History + WebMCP + Copilot convergence
+```
+
+Product acceptance direction:
+
+> The product is not the DesignGraph. The product is a human's ability to
+> design. Build what the human sees and uses first; make the architecture
+> support it; move vertically; move fast.
+
+The near-term acceptance test is a new human opening CollabCanvas, choosing a
+blank/preset start, adding and editing elements, seeing them in Layers and the
+Inspector, saving, reloading, and continuing — without needing Copilot, an
+agent, WebMCP, or implementation knowledge.
+
+Keep separate: **architecture maturity ≠ product maturity ≠ portfolio
+readiness ≠ production readiness**. See
+[`docs/execution-strategy.md`](docs/execution-strategy.md) for the full
+strategy.
+
+---
+
 ## ✨ Why this is different
 
 Most "AI + canvas" demos bolt a chatbot onto a drawing app: the model spits out an image or a blob of JSON and you take it or leave it. CollabCanvas is built the other way around.
@@ -29,8 +80,15 @@ The board seeds a short welcome scene on first visit so the collaboration model 
 
 ```bash
 npm install
+npm run api          # API on http://localhost:8787 (needs DATABASE_URL)
 npm run dev          # → http://localhost:5173
 ```
+
+Vite proxies `/api`, `/healthz`, and `/readyz` to the API (`127.0.0.1:8787` by
+default; override with `VITE_API_PROXY_TARGET` if the API runs elsewhere).
+Load `.env.local` into the API process (`set -a; source .env.local; set +a`)
+so it can reach PostgreSQL. Without the API, the editor shows a clear
+`GRAPH_UNAVAILABLE`/network message instead of failing silently.
 
 ```bash
 npm run build        # type-check + production build → dist/
@@ -124,6 +182,13 @@ await window.CollabCanvas.callTool('generate_layout', {
 
 ## 🧭 Current architecture and implementation status
 
+Layer 19 Copilot proposal hardening is implemented and verified for the current
+two-operation vocabulary (`moveNode`, `deleteNode`). The HTTP proposal route,
+server-authoritative approved-version grounding, scope/version conflict paths,
+workspace-preserving review navigation, and Agent Console activity boundary are
+covered by the test suite. Live PostgreSQL-backed browser hydration remains
+environment-dependent when `DATABASE_URL` is not configured.
+
 The repository now has two deliberately distinct surfaces. The browser canvas
 is working editor software and remains a projection/runtime surface. The
 server-side Design Graph is the canonical representation used by application,
@@ -187,7 +252,7 @@ canonical again.
 | 1. Persistence | Project → DesignDocument → Page → DesignNode contracts, PostgreSQL migrations, repositories, API CRUD | Implemented |
 | 2. Design Graph | Semantic nodes, hierarchy validation, components/instances, tokens, typography, layout/responsive constraints, interactions, accessibility, assets, intent, graph operations | Implemented; graph is canonical |
 | 3. Manifest compiler | Explicit contract, deterministic compilation and serialization | Implemented; derived artifact only |
-| 4. Manifest API | `GET /api/v1/documents/:documentId/manifest` application/API boundary | Implemented; rich PostgreSQL hydration incomplete |
+| 4. Manifest API | `GET /api/v1/documents/:documentId/manifest` application/API boundary | Implemented; complete graph snapshots hydrate through PostgreSQL |
 | 5. Agent Gateway | Identity boundary, project scope, capability checks, safe gateway errors | Implemented; development authentication only |
 | 6. Semantic WebMCP/MCP | Transport-neutral `get_manifest` over the gateway | Implemented; no standalone MCP transport |
 | 7. Canvas vertical slice | Graph load, projection, move/delete operations, deterministic re-projection | Implemented as a narrow migration slice |
@@ -197,11 +262,17 @@ canonical again.
 | 14. Structured Copilot | Provider-neutral context and injected planner producing typed proposal operations | Implemented; no AI provider or automatic mutation |
 | 15. Production hardening | Runtime config, audit events, injectable rate limits, health/readiness probes, redacted errors | Implemented as development/test foundations |
 
+The frontend execution ledger uses its own numbering: frontend Layer 17 is the
+semantic diff UI slice described in `frontend-architecture.md`; Layer 16 is
+the graph-backed token-reference editing slice. The production-hardening entry
+above is the historical system-layer numbering; it is not part of this
+frontend task.
+
 ### Verification
 
 ```text
 npm run typecheck  -> pass
-npm test           -> 101 tests passed across 16 files
+npm test           -> 197 tests passed across 32 files
 npm run build      -> pass (non-failing Vite chunk-size warning)
 git diff --check   -> pass
 Browser WebMCP    -> original 33 canvas tools preserved
@@ -228,11 +299,12 @@ synchronization, Copilot boundaries, and production-hardening seams.
 
 ### Known limitations
 
-1. The richer Layer 2 Design Graph is not fully hydrated by the current
-   PostgreSQL read path. Requests requiring it may return `GRAPH_UNAVAILABLE`;
-   no fake partial Manifest is returned.
-2. `server/index.ts` starts the base PostgreSQL CRUD API. Manifest and gateway
-   services are injectable boundaries, not yet a production deployment wiring.
+1. Rich graph entities are stored as a validated document-scoped JSONB
+   aggregate until dedicated relational tables are introduced. Run
+   `npm run db:migrate` to apply migration 003 before using graph hydration.
+2. `server/index.ts` composes the PostgreSQL graph application service and
+   exposes the scoped workspace graph route; manifest and gateway services
+   remain injectable boundaries.
 3. Authentication is development-only. There is no production API-key, OAuth,
    workload identity, revocation store, or external identity provider.
 4. Audit events and rate limits are in-memory. Durable audit storage and shared
@@ -249,7 +321,7 @@ synchronization, Copilot boundaries, and production-hardening seams.
 The first Layer 15 test run reported `100 passed, 1 failed`. `MemoryAuditSink`
 used `structuredClone()` when reading records, which removed the frozen audit
 context invariant. The sink now freezes event and context on record and read;
-the final result is **101/101 tests passing**.
+the final result is **197/197 tests passing** across 32 files.
 
 The production build still emits a non-failing Vite warning that the main
 JavaScript chunk exceeds 500 kB after minification. This is a bundle
@@ -258,8 +330,8 @@ hardening scope.
 
 ### Remaining roadmap
 
-1. Complete PostgreSQL hydration for the richer Design Graph and wire the
-   production application composition.
+1. Build the remaining Layer 18 proposal review UI on the accepted version/
+   approval trust surface, followed by Copilot and Agent Center workflows.
 2. Replace development authentication with managed machine identity and secret
    management.
 3. Move audit events to durable storage and rate limiting to a shared policy.
@@ -336,7 +408,42 @@ Vite 8 · React 18 · TypeScript 5 (strict) · Zustand 5 · Tailwind v4 · Postg
 
 ## ☁️ Deployment
 
-Deployed as a fully static SPA to **Azure Static Web Apps** (WebMCP runs entirely in the browser — no backend required). SPA fallback routing is configured in `staticwebapp.config.json`. See that file and the deploy notes for the exact `swa deploy` flow.
+Deployed to **Vercel** as a static SPA plus a serverless API function.
+
+- `vercel.json` builds `npm run build` → `dist` and rewrites `/api/*` to `api/index.ts`.
+- `api/index.ts` is the serverless entry point; it wires the same application services as `server/index.ts` (workspace, design graph, editor commands, history, versions, manifest, assistant).
+- The design graph and version history live in PostgreSQL (`DATABASE_URL`).
+- Migrations: `npm run db:migrate` (see `db/migrations/`).
+
+### Required environment variables
+
+- `DATABASE_URL` — PostgreSQL connection string for the canonical design graph.
+
+### Design assistant (Azure OpenAI)
+
+The assistant runs server-side, so the credential never reaches the browser.
+
+- `AZURE_OPENAI_ENDPOINT` — resource endpoint (see the two shapes below)
+- `AZURE_OPENAI_API_KEY` — Azure OpenAI key (server-side only)
+- `AZURE_OPENAI_DEPLOYMENT` — deployment (classic) or model name (Foundry v1), e.g. `gpt-4o` / `gpt-5-mini`
+- `AZURE_OPENAI_API_VERSION` — optional; defaults to `2024-10-21` (classic surface only)
+
+Both Azure surfaces are supported and detected from the endpoint:
+
+- **Classic Azure OpenAI** — `https://<resource>.openai.azure.com`. Requests go to `/openai/deployments/<deployment>/chat/completions?api-version=…` with an `api-key` header.
+- **Azure AI Foundry v1** — an endpoint ending in `/openai/v1`. Requests go to `<endpoint>/chat/completions` with a `Bearer` token and the model in the body. On this surface `temperature` is omitted and `max_completion_tokens` is used, since newer reasoning models reject the classic parameters.
+
+When the three required variables are present the API uses `AzureOpenAiCopilotPlanner`. When they are absent the deterministic planner is used, so the product still runs without credentials. Model output is validated against the trusted graph before it can become a proposal: unknown layer ids and unsupported operations are dropped, and an unreachable model degrades to a clarification instead of an executable change.
+
+Suggestions are grounded in the design the user is actually editing — the working draft, or the latest approved snapshot when there is no draft — so the assistant works on a brand-new design while approved snapshots stay immutable. `GET /api/v1/assistant` reports which assistant is answering (`azure-openai` or `builtin`) and never returns endpoint, deployment, or key material.
+
+Never expose these as `VITE_*` variables — anything prefixed `VITE_` is bundled into the client.
+
+Add the variables to Vercel with `vercel env add AZURE_OPENAI_ENDPOINT`, `vercel env add AZURE_OPENAI_API_KEY`, and `vercel env add AZURE_OPENAI_DEPLOYMENT` for both Production and Preview, then redeploy.
+
+### Known limitation
+
+Editor undo/redo history is currently held in memory per server process (`EditorHistoryApplicationService`). On serverless hosting consecutive requests may not share an instance, so undo is unreliable once deployed. Persisting the history is a follow-up.
 
 ## Persistence slice (development)
 
@@ -350,7 +457,7 @@ Manifest retrieval is now available as an internal document-scoped application/A
 
 `GET /api/v1/documents/:documentId/manifest`
 
-It requires a richer `DesignGraphRepository`; the current PostgreSQL slice does not yet hydrate all Layer 2 entities, so production requests return `GRAPH_UNAVAILABLE` until that persistence read path is added. This endpoint is not the Agent Gateway.
+It requires the canonical `DesignGraphRepository`; PostgreSQL hydrates the complete graph snapshot from the `design_graphs` JSONB aggregate after migration 003. This endpoint is not the Agent Gateway.
 
 Layer 6 adds a separate, transport-neutral semantic `get_manifest` tool under
 `server/mcp/`. It delegates through the existing Agent Gateway and is not
@@ -359,10 +466,10 @@ remains exactly 33 tools. A standalone MCP transport and production machine
 authentication are intentionally deferred; see `docs/semantic-webmcp.md`.
 
 The graph-backed canvas vertical slice is documented in
-`docs/canvas-vertical-slice.md`. It loads a canonical graph, applies move and
-delete through the application/domain boundary, and re-projects the result into
-the unchanged Zustand/SVG editor. The richer graph remains unavailable from
-the default PostgreSQL path until full hydration is implemented.
+`docs/canvas-vertical-slice.md`. It loads a canonical graph, applies graph-backed
+edits through the application/domain boundary, and re-projects the result into
+the unchanged Zustand/SVG editor. B7 Level 2 verifies the PostgreSQL → API →
+workspace hydration path.
 
 Versioning and proposal semantics are documented in `docs/versioning.md`.
 Drafts are mutable, approved graph snapshots are immutable, and proposed
@@ -378,9 +485,8 @@ layer. Layer 13 now adds their controlled foundation below.
 The Layer 12 InvoiceFlow proof is documented in `docs/invoiceflow.md`. It
 provisions the canonical fixture through the typed development repositories,
 creates and approves an immutable version, and retrieves the resulting
-manifest through the existing project-scoped Agent Gateway. It is a
-development/test proof only while PostgreSQL rich-graph hydration remains
-unimplemented.
+manifest through the existing project-scoped Agent Gateway. It remains a
+development/test orchestration rather than the InvoiceFlow product application.
 
 Layer 13 adds the synchronization foundation documented in
 `docs/design-code-synchronization.md`: implementation status reports,

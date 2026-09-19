@@ -1,5 +1,5 @@
-import type { DesignManifest } from '../domain/manifest-types'
-import type { ImplementationStatus, ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types'
+import type { DesignManifest } from '../domain/manifest-types.js'
+import type { ImplementationStatus, ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types.js'
 
 export const GATEWAY_CAPABILITIES = ['READ_MANIFEST', 'READ_VERSION', 'REPORT_IMPLEMENTATION_STATUS', 'PROPOSE_SYNC'] as const
 export type GatewayCapability = (typeof GATEWAY_CAPABILITIES)[number]

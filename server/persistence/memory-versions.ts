@@ -1,5 +1,5 @@
-import type { DesignProposal, DesignVersion } from '../domain/version-types'
-import type { VersionRepository } from './version-repository'
+import type { DesignProposal, DesignVersion } from '../domain/version-types.js'
+import type { VersionRepository } from './version-repository.js'
 
 /** Test/local repository; durable PostgreSQL hydration is a later slice. */
 export class MemoryVersionRepository implements VersionRepository {

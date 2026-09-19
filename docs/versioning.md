@@ -58,10 +58,35 @@ CanvasElement state.
 
 Migration `002_versioning.sql` defines PostgreSQL tables for version snapshots
 and proposals. The current application implementation uses
-`MemoryVersionRepository` for tests and local development because PostgreSQL
-does not yet hydrate the full Layer 2 graph aggregate. No partial production
+`MemoryVersionRepository` for tests and local development for richer
+version/proposal orchestration. B7 Level 2 separately verifies canonical graph
+hydration through PostgreSQL's `design_graphs` aggregate. No partial production
 version source is fabricated.
 
-This layer does not implement agent write capabilities, authentication,
-proposal APIs, synchronization, implementation reporting, or automatic
-approval. Those remain later layers.
+The frontend trust surface uses scoped version HTTP commands for draft creation
+and approval. Proposal review remains proposal-first: the existing
+`DesignProposal` is validated and approved through the application service,
+which creates a new draft; it never edits an approved snapshot. Stale bases
+return `VERSION_CONFLICT`, and cross-project/document requests are rejected at
+the application boundary.
+
+Agent write capabilities, authentication, synchronization, implementation
+reporting, and automatic approval remain later layers.
+
+## Copilot proposal generation
+
+Copilot captures the current approved version and project/document/page scope,
+resolves selected node IDs against the canonical graph, and creates a pending
+typed `DesignProposal` only after validation. Generation and approval are
+separate: unsupported, ambiguous, unavailable, invalid, or stale context
+produces clarification/error state and no executable proposal. Approval
+continues through `VersioningApplicationService`, including its authoritative
+stale-version check and canonical graph write.
+
+The Layer 19 HTTP proposal contract is tested directly. Client workspace and
+trusted-version fields are hints only: the server resolves the current approved
+version and canonical graph, then revalidates project, document, page,
+selection, relationships, and operations. Drift, unavailable or invalid graph
+state, scope violations, and malformed requests cannot create executable
+proposals. Review links preserve workspace query context. The Agent Console may
+report a proposal awaiting review, but cannot execute or approve it directly.

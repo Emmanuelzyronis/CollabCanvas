@@ -1,3 +1,3 @@
-export * from './contracts'
-export * from './semantic-tools'
-export * from './synchronization-tools'
+export * from './contracts.js'
+export * from './semantic-tools.js'
+export * from './synchronization-tools.js'

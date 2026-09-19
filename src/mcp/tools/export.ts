@@ -1,16 +1,48 @@
 import type { CanvasStore } from '../../store/store'
+import type { DesignGraph } from '../../../server/domain/contracts'
+import { getCanonicalGraph } from '../../graph/canonicalGraph'
+import { graphToCanvasProjection } from '../../graph/canvasProjection'
 import { asBool, asStrArr, err, ok, okJson } from '../helpers'
 import { elementsToSvg } from '../svg'
 import type { ToolDef } from './create'
 
 type Store = () => CanvasStore
 
-/** Resolve which elements to export: given ids (order-preserving) or the whole board. */
-function pickElements(store: CanvasStore, ids: string[]) {
-  const all = store.getElements()
-  if (ids.length === 0) return all
-  const wanted = new Set(store.expandGroups(ids))
-  return all.filter((el) => wanted.has(el.id))
+/** Every node in the subtree of `ids` (a node always exports with its children). */
+function withDescendants(graph: DesignGraph, ids: readonly string[]): Set<string> {
+  const childrenOf = new Map<string, string[]>()
+  for (const node of graph.nodes) {
+    if (!node.parentId) continue
+    const list = childrenOf.get(node.parentId)
+    if (list) list.push(node.id)
+    else childrenOf.set(node.parentId, [node.id])
+  }
+  const wanted = new Set<string>()
+  const walk = (id: string) => {
+    if (wanted.has(id)) return
+    wanted.add(id)
+    for (const child of childrenOf.get(id) ?? []) walk(child)
+  }
+  for (const id of ids) walk(id)
+  return wanted
+}
+
+/**
+ * Resolve which elements to export from the *canonical* design — the same
+ * source of truth every other surface uses — rather than the runtime canvas
+ * projection. Given ids export those subtrees; no ids export the whole design.
+ */
+function pickElements(graph: DesignGraph, ids: string[]) {
+  const projection = graphToCanvasProjection(graph)
+  if (ids.length === 0) return projection.elements
+  const wanted = withDescendants(graph, ids)
+  return projection.elements.filter((el) => wanted.has(el.id))
+}
+
+/** The canonical design, or a product-level explanation when none is loaded. */
+function canonicalGraph(): DesignGraph | { error: string } {
+  const graph = getCanonicalGraph()
+  return graph ?? { error: 'No design is open. Open a design, then export it.' }
 }
 
 /** Trigger a browser download of a blob (best-effort; no-op outside a document). */
@@ -42,8 +74,10 @@ export function exportTools(getStore: Store): ToolDef[] {
       },
       annotations: { readOnlyHint: true },
       execute: (a) => {
+        const graph = canonicalGraph()
+        if ('error' in graph) return err(graph.error)
         const store = getStore()
-        const els = pickElements(store, asStrArr(a.ids))
+        const els = pickElements(graph, asStrArr(a.ids))
         if (els.length === 0) return err('Nothing to export.')
         const { svg, width, height } = elementsToSvg(els)
         if (asBool(a.download, true)) downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'collabcanvas.svg')
@@ -64,8 +98,10 @@ export function exportTools(getStore: Store): ToolDef[] {
       },
       annotations: { readOnlyHint: true },
       execute: async (a) => {
+        const graph = canonicalGraph()
+        if ('error' in graph) return err(graph.error)
         const store = getStore()
-        const els = pickElements(store, asStrArr(a.ids))
+        const els = pickElements(graph, asStrArr(a.ids))
         if (els.length === 0) return err('Nothing to export.')
         if (typeof document === 'undefined' || typeof Image === 'undefined') return err('PNG export needs a browser environment.')
         const scale = typeof a.scale === 'number' && a.scale > 0 ? a.scale : 2
@@ -83,14 +119,15 @@ export function exportTools(getStore: Store): ToolDef[] {
     {
       name: 'export_json',
       description:
-        'Export the board as a structured JSON snapshot (elements, draw order, comments). This is the canonical, reload-able board format. Returns the JSON.',
+        'Export the canonical design as structured JSON (nodes, layout, tokens, components, intent). This is the design a coding agent should build from. Returns the JSON.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       execute: () => {
+        const graph = canonicalGraph()
+        if ('error' in graph) return err(graph.error)
         const store = getStore()
-        const snap = store.getSnapshot()
-        store.logActivity('agent', 'export', `Exported board JSON (${snap.order.length} elements)`, [])
-        return okJson(`Board snapshot: ${snap.order.length} element(s), ${snap.comments.length} comment(s).`, snap)
+        store.logActivity('agent', 'export', `Exported design JSON (${graph.nodes.length} nodes)`, [])
+        return okJson(`Canonical design: ${graph.nodes.length} node(s), ${graph.tokens.length} token(s), ${graph.componentDefinitions.length} component definition(s).`, graph)
       },
     },
   ]

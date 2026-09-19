@@ -116,6 +116,9 @@ export interface AssetReference {
   name: string
   source: string
   altText?: string
+  /** Intrinsic pixel dimensions of the asset, used so images fill their frame without distortion. */
+  width?: number
+  height?: number
 }
 
 export type TokenCategory = 'color' | 'spacing' | 'typography' | 'radius' | 'border' | 'shadow'

@@ -1,4 +1,4 @@
-import type { DesignProposal, DesignVersion } from '../domain/version-types'
+import type { DesignProposal, DesignVersion } from '../domain/version-types.js'
 
 export interface VersionRepository {
   getVersion(id: string): Promise<DesignVersion | null>

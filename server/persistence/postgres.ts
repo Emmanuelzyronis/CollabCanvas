@@ -1,7 +1,10 @@
 import { Pool } from 'pg'
-import { DomainError } from '../domain/errors'
-import type { DesignDocument, DesignNode, JsonObject, LayoutConstraints, NodeSemantic, NodeType, Page, PageGraph, Project } from '../domain/contracts'
-import type { DesignRepository } from './repository'
+import { DomainError } from '../domain/errors.js'
+import type { DesignDocument, DesignGraph, DesignNode, JsonObject, LayoutConstraints, NodeSemantic, NodeType, Page, PageGraph, Project } from '../domain/contracts.js'
+import { validateDesignGraph } from '../domain/graph-validation.js'
+import type { DesignProposal, DesignVersion } from '../domain/version-types.js'
+import type { DesignGraphRepository, DesignGraphWriter, DesignRepository } from './repository.js'
+import type { VersionRepository } from './version-repository.js'
 
 interface Queryable {
   query<T = Record<string, unknown>>(text: string, values?: readonly unknown[]): Promise<{ rows: T[] }>
@@ -23,6 +26,9 @@ type NodeRow = {
   created_at: Date | string
   updated_at: Date | string
 }
+type GraphRow = { document_id: string; graph: DesignGraph }
+type VersionRow = Omit<DesignVersion, 'number' | 'createdAt' | 'approvedAt'> & { version_number: number; created_at: Date | string; approved_at: Date | string | null }
+type ProposalRow = Omit<DesignProposal, 'createdAt' | 'reviewedAt'> & { created_at: Date | string; reviewed_at: Date | string | null }
 
 const iso = (value: Date | string) => value instanceof Date ? value.toISOString() : new Date(value).toISOString()
 
@@ -43,7 +49,35 @@ const toNode = (row: NodeRow): DesignNode => ({
   updatedAt: iso(row.updated_at),
 })
 
-export class PostgresDesignRepository implements DesignRepository {
+const toVersion = (row: VersionRow): DesignVersion => ({
+  id: row.id,
+  projectId: row.projectId,
+  documentId: row.documentId,
+  number: row.version_number,
+  status: row.status,
+  graph: structuredClone(row.graph),
+  graphHash: row.graphHash,
+  createdAt: iso(row.created_at),
+  createdBy: row.createdBy,
+  ...(row.approved_at ? { approvedAt: iso(row.approved_at), approvedBy: row.approvedBy } : {}),
+})
+
+const toProposal = (row: ProposalRow): DesignProposal => ({
+  id: row.id,
+  projectId: row.projectId,
+  documentId: row.documentId,
+  baseVersionId: row.baseVersionId,
+  operations: structuredClone(row.operations),
+  affectedResourceIds: structuredClone(row.affectedResourceIds),
+  rationale: row.rationale,
+  author: row.author,
+  validation: structuredClone(row.validation),
+  status: row.status,
+  createdAt: iso(row.created_at),
+  ...(row.reviewed_at ? { reviewedAt: iso(row.reviewed_at), reviewedBy: row.reviewedBy, ...(row.resultingVersionId ? { resultingVersionId: row.resultingVersionId } : {}) } : {}),
+})
+
+export class PostgresDesignRepository implements DesignRepository, DesignGraphRepository, DesignGraphWriter {
   constructor(private readonly db: Queryable) {}
 
   async createProject(project: Project): Promise<Project> {
@@ -116,6 +150,121 @@ export class PostgresDesignRepository implements DesignRepository {
       )
       return toNode(rows[0])
     } catch (error) { throw mapDatabaseError(error, `Design node "${node.id}" could not be created.`) }
+  }
+
+  async getDesignGraph(documentId: string): Promise<DesignGraph | null> {
+    const { rows } = await this.db.query<GraphRow>('SELECT document_id, graph FROM design_graphs WHERE document_id = $1', [documentId])
+    const row = rows[0]
+    return row ? structuredClone(row.graph) : null
+  }
+
+  async saveDesignGraph(graph: DesignGraph): Promise<DesignGraph> {
+    validateDesignGraph(graph)
+    try {
+      const { rows } = await this.db.query<GraphRow>(
+        `INSERT INTO design_graphs (document_id, project_id, page_id, graph, updated_at)
+         VALUES ($1, $2, $3, $4::jsonb, $5)
+         ON CONFLICT (document_id) DO UPDATE SET project_id = EXCLUDED.project_id, page_id = EXCLUDED.page_id, graph = EXCLUDED.graph, updated_at = EXCLUDED.updated_at
+         RETURNING document_id, graph`,
+        [graph.document.id, graph.project.id, graph.page.id, JSON.stringify(graph), graph.document.updatedAt],
+      )
+      return structuredClone(rows[0].graph)
+    } catch (error) {
+      throw mapDatabaseError(error, `Design graph for document "${graph.document.id}" could not be saved.`)
+    }
+  }
+}
+
+export class PostgresVersionRepository implements VersionRepository {
+  constructor(private readonly db: Queryable) {}
+
+  async getVersion(id: string): Promise<DesignVersion | null> {
+    const { rows } = await this.db.query<VersionRow>(
+      `SELECT id, project_id AS "projectId", document_id AS "documentId", version_number, status, graph,
+        graph_hash AS "graphHash", created_at, created_by AS "createdBy", approved_at, approved_by AS "approvedBy"
+       FROM design_versions WHERE id = $1`,
+      [id],
+    )
+    return rows[0] ? toVersion(rows[0]) : null
+  }
+
+  async listVersions(documentId: string): Promise<DesignVersion[]> {
+    const { rows } = await this.db.query<VersionRow>(
+      `SELECT id, project_id AS "projectId", document_id AS "documentId", version_number, status, graph,
+        graph_hash AS "graphHash", created_at, created_by AS "createdBy", approved_at, approved_by AS "approvedBy"
+       FROM design_versions WHERE document_id = $1 ORDER BY version_number ASC, id ASC`,
+      [documentId],
+    )
+    return rows.map(toVersion)
+  }
+
+  async saveVersion(version: DesignVersion): Promise<DesignVersion> {
+    try {
+      const { rows } = await this.db.query<VersionRow>(
+        `INSERT INTO design_versions
+          (id, project_id, document_id, version_number, status, graph, graph_hash, created_at, created_by, approved_at, approved_by)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11)
+         RETURNING id, project_id AS "projectId", document_id AS "documentId", version_number, status, graph,
+          graph_hash AS "graphHash", created_at, created_by AS "createdBy", approved_at, approved_by AS "approvedBy"`,
+        [version.id, version.projectId, version.documentId, version.number, version.status, JSON.stringify(version.graph), version.graphHash, version.createdAt, version.createdBy, version.approvedAt ?? null, version.approvedBy ?? null],
+      )
+      return toVersion(rows[0])
+    } catch (error) { throw mapDatabaseError(error, `Version number ${version.number} already exists.`) }
+  }
+
+  async updateVersion(version: DesignVersion): Promise<DesignVersion> {
+    try {
+      const { rows } = await this.db.query<VersionRow>(
+        `UPDATE design_versions SET status = $2, graph = $3::jsonb, graph_hash = $4, approved_at = $5, approved_by = $6
+         WHERE id = $1
+         RETURNING id, project_id AS "projectId", document_id AS "documentId", version_number, status, graph,
+          graph_hash AS "graphHash", created_at, created_by AS "createdBy", approved_at, approved_by AS "approvedBy"`,
+        [version.id, version.status, JSON.stringify(version.graph), version.graphHash, version.approvedAt ?? null, version.approvedBy ?? null],
+      )
+      if (!rows[0]) throw new DomainError('NOT_FOUND', `Design version "${version.id}" was not found.`)
+      return toVersion(rows[0])
+    } catch (error) { throw mapDatabaseError(error, `Design version "${version.id}" could not be updated.`) }
+  }
+
+  async getProposal(id: string): Promise<DesignProposal | null> {
+    const { rows } = await this.db.query<ProposalRow>(
+      `SELECT id, project_id AS "projectId", document_id AS "documentId", base_version_id AS "baseVersionId", operations,
+        affected_resource_ids AS "affectedResourceIds", rationale, author, validation, status, created_at,
+        reviewed_at, reviewed_by AS "reviewedBy", resulting_version_id AS "resultingVersionId"
+       FROM design_proposals WHERE id = $1`,
+      [id],
+    )
+    return rows[0] ? toProposal(rows[0]) : null
+  }
+
+  async saveProposal(proposal: DesignProposal): Promise<DesignProposal> {
+    try {
+      const { rows } = await this.db.query<ProposalRow>(
+        `INSERT INTO design_proposals
+          (id, project_id, document_id, base_version_id, operations, affected_resource_ids, rationale, author, validation, status, created_at, reviewed_at, reviewed_by, resulting_version_id)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9::jsonb, $10, $11, $12, $13, $14)
+         RETURNING id, project_id AS "projectId", document_id AS "documentId", base_version_id AS "baseVersionId", operations,
+          affected_resource_ids AS "affectedResourceIds", rationale, author, validation, status, created_at,
+          reviewed_at, reviewed_by AS "reviewedBy", resulting_version_id AS "resultingVersionId"`,
+        [proposal.id, proposal.projectId, proposal.documentId, proposal.baseVersionId, JSON.stringify(proposal.operations), JSON.stringify(proposal.affectedResourceIds), proposal.rationale, proposal.author, JSON.stringify(proposal.validation), proposal.status, proposal.createdAt, proposal.reviewedAt ?? null, proposal.reviewedBy ?? null, proposal.resultingVersionId ?? null],
+      )
+      return toProposal(rows[0])
+    } catch (error) { throw mapDatabaseError(error, `Design proposal "${proposal.id}" could not be saved.`) }
+  }
+
+  async updateProposal(proposal: DesignProposal): Promise<DesignProposal> {
+    try {
+      const { rows } = await this.db.query<ProposalRow>(
+        `UPDATE design_proposals SET status = $2, validation = $3::jsonb, reviewed_at = $4, reviewed_by = $5, resulting_version_id = $6
+         WHERE id = $1
+         RETURNING id, project_id AS "projectId", document_id AS "documentId", base_version_id AS "baseVersionId", operations,
+          affected_resource_ids AS "affectedResourceIds", rationale, author, validation, status, created_at,
+          reviewed_at, reviewed_by AS "reviewedBy", resulting_version_id AS "resultingVersionId"`,
+        [proposal.id, proposal.status, JSON.stringify(proposal.validation), proposal.reviewedAt ?? null, proposal.reviewedBy ?? null, proposal.resultingVersionId ?? null],
+      )
+      if (!rows[0]) throw new DomainError('NOT_FOUND', `Design proposal "${proposal.id}" was not found.`)
+      return toProposal(rows[0])
+    } catch (error) { throw mapDatabaseError(error, `Design proposal "${proposal.id}" could not be updated.`) }
   }
 }
 

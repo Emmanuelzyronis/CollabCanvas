@@ -34,6 +34,12 @@ export interface CanvasElement {
   fontWeight: number
   textColor: string
   textAlign: TextAlign
+  fontFamily: string
+  lineHeight: number
+  borderRadius: number
+  imageSrc?: string
+  imageWidth?: number
+  imageHeight?: number
   // connector endpoints (element ids); null => use bbox diagonal
   from: string | null
   to: string | null

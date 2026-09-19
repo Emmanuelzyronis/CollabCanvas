@@ -1,4 +1,4 @@
-import type { DesignGraph } from './contracts'
+import type { CreateNodeInput, DesignGraph, JsonObject, LayoutConstraints, NodeSemantic } from './contracts.js'
 
 export type DesignVersionStatus = 'draft' | 'approved'
 
@@ -16,9 +16,39 @@ export interface DesignVersion {
   approvedBy?: string
 }
 
+/**
+ * A node a proposal wants to create.
+ *
+ * `key` is proposal-scoped, not canonical identity: operations inside one
+ * proposal reference each other by key, and real node ids are minted when the
+ * proposal is applied. A proposal can therefore never dictate canonical
+ * identity, and the same plan always resolves to the same structure.
+ */
+export interface ProposedNode {
+  key: string
+  parentKey?: string | null
+  parentId?: string | null
+  orderIndex?: number
+  node: Omit<CreateNodeInput, 'parentId' | 'orderIndex'>
+}
+
+/**
+ * A structural refinement of an existing node. Refinements change layout or
+ * presentation (spacing, alignment, colour, text); they never introduce new
+ * identity and never bypass the canonical node model.
+ */
+export interface ProposedNodeUpdate {
+  name?: string
+  layout?: LayoutConstraints
+  properties?: JsonObject
+  semantic?: NodeSemantic
+}
+
 export type DesignChangeOperation =
   | { type: 'moveNode'; nodeId: string; parentId: string | null; orderIndex?: number }
   | { type: 'deleteNode'; nodeId: string }
+  | { type: 'updateNode'; nodeId: string; patch: ProposedNodeUpdate }
+  | ({ type: 'createNode' } & ProposedNode)
 
 export interface ProposalValidationIssue {
   code: string
@@ -59,6 +89,13 @@ export interface SemanticChange {
   kind: SemanticChangeKind
 }
 
+/** A deterministic field-level explanation of an entity change for semantic diff consumers. */
+export interface SemanticFieldChange extends SemanticChange {
+  path: string
+  before?: unknown
+  after?: unknown
+}
+
 export interface VersionComparison {
   fromVersionId: string
   toVersionId: string
@@ -66,4 +103,5 @@ export interface VersionComparison {
   toHash: string
   equivalent: boolean
   changes: SemanticChange[]
+  fieldChanges: SemanticFieldChange[]
 }

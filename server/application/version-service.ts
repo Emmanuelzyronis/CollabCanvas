@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { DesignGraph } from '../domain/contracts'
-import { DomainError } from '../domain/errors'
-import { validateDesignGraph } from '../domain/graph-validation'
-import { applyDesignChangeOperations, compareDesignGraphs, hashDesignGraph, validateProposalOperations } from '../domain/versioning'
-import type { DesignChangeOperation, DesignProposal, DesignVersion, VersionComparison } from '../domain/version-types'
-import type { DesignGraphRepository, DesignGraphWriter, DesignRepository } from '../persistence/repository'
-import type { VersionRepository } from '../persistence/version-repository'
+import type { DesignGraph } from '../domain/contracts.js'
+import { DomainError } from '../domain/errors.js'
+import { validateDesignGraph } from '../domain/graph-validation.js'
+import { affectedResourceIds, applyDesignChangeOperations, compareDesignGraphs, hashDesignGraph, validateProposalOperations } from '../domain/versioning.js'
+import type { DesignChangeOperation, DesignProposal, DesignVersion, VersionComparison } from '../domain/version-types.js'
+import type { DesignGraphRepository, DesignGraphWriter, DesignRepository } from '../persistence/repository.js'
+import type { VersionRepository } from '../persistence/version-repository.js'
 
 export interface VersionServiceDeps {
   id?: () => string
@@ -51,6 +51,46 @@ export class VersioningApplicationService implements VersionMutationGuard {
     return version
   }
 
+  async listVersions(documentId: string): Promise<DesignVersion[]> {
+    const id = requiredText(documentId, 'documentId')
+    return this.versions.listVersions(id)
+  }
+
+  async listWorkspaceVersions(projectId: string, documentId: string): Promise<DesignVersion[]> {
+    const project = requiredText(projectId, 'projectId')
+    const document = await this.requireScopedDocument(project, documentId)
+    return this.versions.listVersions(document.id)
+  }
+
+  async getScopedProposal(projectId: string, documentId: string, proposalId: string): Promise<DesignProposal> {
+    await this.requireScopedDocument(projectId, documentId)
+    const proposal = await this.getProposal(proposalId)
+    if (proposal.projectId !== projectId || proposal.documentId !== documentId) throw new DomainError('NOT_FOUND', `Design proposal "${proposalId}" was not found.`)
+    return proposal
+  }
+
+  async createScopedDraft(projectId: string, documentId: string, createdBy: string): Promise<DesignVersion> {
+    await this.requireScopedDocument(projectId, documentId)
+    return this.createDraft(documentId, createdBy)
+  }
+
+  async approveScopedVersion(projectId: string, documentId: string, versionId: string, approvedBy: string): Promise<DesignVersion> {
+    await this.requireScopedDocument(projectId, documentId)
+    const version = await this.getVersion(versionId)
+    if (version.projectId !== projectId || version.documentId !== documentId) throw new DomainError('NOT_FOUND', `Design version "${versionId}" was not found.`)
+    return this.approveVersion(version.id, approvedBy)
+  }
+
+  async approveScopedProposal(projectId: string, documentId: string, proposalId: string, approvedBy: string): Promise<{ proposal: DesignProposal; version: DesignVersion }> {
+    await this.getScopedProposal(projectId, documentId, proposalId)
+    return this.approveProposal(proposalId, approvedBy)
+  }
+
+  async rejectScopedProposal(projectId: string, documentId: string, proposalId: string, rejectedBy: string): Promise<DesignProposal> {
+    await this.getScopedProposal(projectId, documentId, proposalId)
+    return this.rejectProposal(proposalId, rejectedBy)
+  }
+
   async createDraft(documentId: string, createdBy: string): Promise<DesignVersion> {
     const id = requiredText(documentId, 'documentId')
     const author = requiredText(createdBy, 'createdBy')
@@ -87,14 +127,16 @@ export class VersioningApplicationService implements VersionMutationGuard {
     const rationale = requiredText(input.rationale, 'rationale')
     const author = requiredText(input.author, 'author')
     const base = await this.getVersion(input.baseVersionId)
-    const versions = await this.versions.listVersions(documentId)
-    const current = this.latestApproved(versions)
+    const head = await this.getHeadVersion(documentId)
     if (base.projectId !== projectId || base.documentId !== documentId) throw new DomainError('INVALID_REFERENCE', 'The proposal base version is outside the requested project/document scope.')
-    if (base.status !== 'approved' || !current || current.id !== base.id) throw new DomainError('VERSION_CONFLICT', 'The proposal base version is not the current approved version.')
+    // A proposal targets the current working version: the active draft when the
+    // design is being edited, otherwise the latest approved snapshot. Approved
+    // snapshots are never mutated by the proposal itself.
+    if (!head || head.id !== base.id) throw new DomainError('VERSION_CONFLICT', 'The proposal base version is not the current working version. Refresh the design and try again.')
     const operations = structuredClone([...input.operations])
     const validation = validateProposalOperations(base.graph, operations)
-    const affectedResourceIds = [...new Set(operations.flatMap((operation) => [operation.nodeId]))].sort()
-    return this.versions.saveProposal({ id: this.makeId(), projectId, documentId, baseVersionId: base.id, operations, affectedResourceIds, rationale, author, validation, status: 'pending', createdAt: this.timestamp() })
+    const affected = affectedResourceIds(operations)
+    return this.versions.saveProposal({ id: this.makeId(), projectId, documentId, baseVersionId: base.id, operations, affectedResourceIds: affected, rationale, author, validation, status: 'pending', createdAt: this.timestamp() })
   }
 
   async approveProposal(proposalId: string, approvedBy: string): Promise<{ proposal: DesignProposal; version: DesignVersion }> {
@@ -102,13 +144,25 @@ export class VersioningApplicationService implements VersionMutationGuard {
     if (proposal.status !== 'pending') throw new DomainError('PROPOSAL_INVALID', 'Only pending proposals can be approved.')
     if (!proposal.validation.valid) throw new DomainError('PROPOSAL_INVALID', 'The proposal contains invalid graph operations.', { issues: proposal.validation.issues })
     const base = await this.getVersion(proposal.baseVersionId)
-    const versions = await this.versions.listVersions(proposal.documentId)
-    const current = this.latestApproved(versions)
-    if (!current || current.id !== base.id) throw new DomainError('VERSION_CONFLICT', 'The proposal base version is stale.')
+    const head = await this.getHeadVersion(proposal.documentId)
+    if (!head || head.id !== base.id) throw new DomainError('VERSION_CONFLICT', 'The proposal base version is stale; refresh the design and re-create the proposal.')
+    // Re-validate against the base graph as it exists now: the working design may
+    // have advanced since the proposal was drafted.
+    const revalidation = validateProposalOperations(base.graph, proposal.operations)
+    if (!revalidation.valid) throw new DomainError('PROPOSAL_INVALID', 'The proposal no longer applies to the current design.', { issues: revalidation.issues })
     const graph = applyDesignChangeOperations(base.graph, proposal.operations)
     await this.graphs.saveDesignGraph(graph)
-    const draft = await this.versions.saveVersion(this.versionRecord(graph, proposal.projectId, proposal.documentId, Math.max(...versions.map((version) => version.number), 0) + 1, 'draft', approvedBy))
-    const updated = await this.versions.updateProposal({ ...proposal, status: 'approved', reviewedAt: this.timestamp(), reviewedBy: requiredText(approvedBy, 'approvedBy'), resultingVersionId: draft.id })
+    const reviewedBy = requiredText(approvedBy, 'approvedBy')
+    if (base.status === 'draft') {
+      // The working draft is mutable, so approval lands directly in it instead
+      // of spawning a second draft for the same document.
+      const updatedDraft = await this.versions.updateVersion({ ...base, graph: structuredClone(graph), graphHash: hashDesignGraph(graph) })
+      const updatedProposal = await this.versions.updateProposal({ ...proposal, status: 'approved', reviewedAt: this.timestamp(), reviewedBy, resultingVersionId: updatedDraft.id })
+      return { proposal: updatedProposal, version: updatedDraft }
+    }
+    const versions = await this.versions.listVersions(proposal.documentId)
+    const draft = await this.versions.saveVersion(this.versionRecord(graph, proposal.projectId, proposal.documentId, Math.max(...versions.map((version) => version.number), 0) + 1, 'draft', reviewedBy))
+    const updated = await this.versions.updateProposal({ ...proposal, status: 'approved', reviewedAt: this.timestamp(), reviewedBy, resultingVersionId: draft.id })
     return { proposal: updated, version: draft }
   }
 
@@ -125,6 +179,18 @@ export class VersioningApplicationService implements VersionMutationGuard {
     }
   }
 
+  /**
+   * The version an editor mutation is based on: the active draft when one
+   * exists, otherwise the latest approved version, otherwise null for a
+   * document that has never been versioned.
+   */
+  async getHeadVersion(documentId: string): Promise<DesignVersion | null> {
+    const versions = await this.versions.listVersions(requiredText(documentId, 'documentId'))
+    const draft = versions.find((version) => version.status === 'draft')
+    if (draft) return draft
+    return this.latestApproved(versions) ?? null
+  }
+
   async recordDraftGraph(graph: DesignGraph): Promise<void> {
     const versions = await this.versions.listVersions(graph.document.id)
     const draft = versions.find((version) => version.status === 'draft')
@@ -137,6 +203,13 @@ export class VersioningApplicationService implements VersionMutationGuard {
     const proposal = await this.versions.getProposal(requiredText(id, 'proposalId'))
     if (!proposal) throw new DomainError('NOT_FOUND', `Design proposal "${id}" was not found.`)
     return proposal
+  }
+
+  private async requireScopedDocument(projectId: string, documentId: string) {
+    const project = requiredText(projectId, 'projectId')
+    const document = await this.resources.getDocument(requiredText(documentId, 'documentId'))
+    if (!document || document.projectId !== project) throw new DomainError('NOT_FOUND', 'The requested document does not belong to the requested project.')
+    return document
   }
 
   private latestApproved(versions: DesignVersion[]): DesignVersion | undefined {

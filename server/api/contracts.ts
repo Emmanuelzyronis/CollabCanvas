@@ -7,8 +7,8 @@ import type {
   DesignNode,
   PageGraph,
   Project,
-} from '../domain/contracts'
-import type { DesignManifest } from '../domain/manifest-types'
+} from '../domain/contracts.js'
+import type { DesignManifest } from '../domain/manifest-types.js'
 
 export type {
   CreateDocumentInput,

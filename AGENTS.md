@@ -16,6 +16,11 @@ The version and proposal systems are the trust layer.
 
 CollabCanvas is not intended to become a Figma/Canva clone.
 
+The primary user is not a UI/UX designer: it is a builder who knows what they
+want and cannot turn it into an interface. Both entry points — the human
+drawing the design and the assistant drafting it from intent — must converge on
+the same editable design state. See "docs/product-vision.md".
+
 The primary product chain is:
 
 Design
@@ -32,7 +37,10 @@ Version
   ↓
 Sync
 
-The frontend must make this architecture visible and usable rather than creating a separate visual system disconnected from the domain.
+The frontend is the human face of this architecture: a real visual design
+environment built directly on the domain contracts, not a separate visual
+system disconnected from the domain. The architecture itself stays invisible to
+the user ("docs/product-vision.md").
 
 ---
 
@@ -75,6 +83,18 @@ It defines the relationship between:
 - versioning
 
 Do not contradict it without an explicit architectural decision.
+
+"docs/product-vision.md"
+
+"docs/product-vision.md" is authoritative for the intended product
+experience. It defines what the human should feel while using CollabCanvas:
+a visual design environment, not an engineering tool. The Design Graph,
+versioning, WebMCP, Copilot, manifest, gateway, and agent infrastructure are
+invisible infrastructure — the human sees only the design environment.
+Implementation work must not expose graph, node-ID, version-ID, projection,
+manifest, gateway, WebMCP, or agent-ecosystem vocabulary in human-facing
+surfaces, and must not trade product usability for architectural
+demonstrability.
 
 "frontend-architecture.md"
 
@@ -152,6 +172,35 @@ These completed frontend foundations must not be rebuilt unnecessarily.
 The next frontend architectural work should proceed from the graph-backed architecture defined by "frontend-architecture.md", beginning with the graph projection boundary.
 
 The exact implementation status must always be verified against the repository before claiming a layer is complete.
+
+---
+
+3a. Current Execution Strategy (Human Editor First)
+
+The current execution strategy is "Human Editor First" with "Fast Vertical
+Slices". The product is the human's ability to design, not the architecture.
+Do not interpret this repository as an agent-first implementation project.
+
+- Immediate product objective: make CollabCanvas a usable visual design
+  environment (frontend pages, flyers, logos) before expanding the agent
+  ecosystem. The editor and the assistant are the same path, not competing
+  ones: intent-first intake is in scope.
+- The Design Graph, versioning, WebMCP, Copilot, manifest, gateway, and agent
+  infrastructure exist to support the human editing experience; architecture
+  work is only successful when it contributes to an executable human workflow
+  (open → create → add → select → edit → save → reload → continue).
+- Zustand/SVG remain runtime and projection infrastructure. Durable editor
+  state must flow through the canonical editor command path
+  (POST /api/v1/documents/:documentId/commands) with explicit base-version
+  semantics; stale writes are conflicts, never silent overwrites.
+- Copilot is hidden by default in the human editor and must never dominate
+  the canvas. Do not expand Copilot/agent/gateway/WebMCP capabilities ahead of
+  the human path they serve. Intent-first intake (a description becomes
+  visible, editable design state) is part of that path and is in scope; agent
+  plumbing, gateway surface and chat-window dominance are not.
+- The current slice sequence (EMM-95 … EMM-101) and UI/UX direction are
+  documented in "docs/execution-strategy.md". Read it before starting
+  editor work and verify behavior in the browser, not just with tests.
 
 ---
 
@@ -1621,6 +1670,20 @@ stop and reassess the architecture.
 18. System architecture comes from "ARCHITECTURE.md".
 19. This file governs repository-wide architectural behavior.
 20. When documentation and the actual repository disagree, inspect first and report the discrepancy rather than guessing.
+
+51. Layer Execution Workflow
+
+Each next-layer task follows this concise loop:
+
+1. State the target layer and its non-goals.
+2. Implement only that layer through existing contracts.
+3. Run focused tests, `make check`, and applicable compilation/build checks.
+4. Perform focused exit verification against the layer acceptance criteria.
+5. If a defect is found, apply only surgical remediation for that defect.
+6. Re-run the focused verification and required checks.
+7. Advance to the next layer only in a subsequent task; never begin it in the same task.
+
+Out-of-scope issues are recorded for later unless they block the current layer. A layer is complete only after its canonical boundary, error behavior, and required integration path have been verified.
 
 ---
 

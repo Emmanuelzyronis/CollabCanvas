@@ -109,6 +109,56 @@ describe('versioning and proposal semantics', () => {
     expect((await graphs.getDesignGraph(fixture.document.id))?.nodes.some((node) => node.id === 'node_invoice_table')).toBe(false)
   })
 
+  it('targets the working draft and applies approval into that same draft', async () => {
+    const { service, graphs } = await setup()
+    const draft = await service.createDraft(fixture.document.id, 'designer')
+    const proposal = await service.createProposal({
+      projectId: fixture.project.id,
+      documentId: fixture.document.id,
+      baseVersionId: draft.id,
+      operations: [{ type: 'moveNode', nodeId: 'node_dashboard_title', parentId: null }],
+      rationale: 'Promote the dashboard title.',
+      author: 'design-assistant',
+    })
+    expect(proposal.validation.valid).toBe(true)
+
+    const result = await service.approveProposal(proposal.id, 'reviewer')
+    // The draft is mutable, so approval updates it instead of spawning a second one.
+    expect(result.version.id).toBe(draft.id)
+    expect(result.version.status).toBe('draft')
+    expect(result.version.graphHash).not.toBe(draft.graphHash)
+    expect((await service.listVersions(fixture.document.id)).filter((version) => version.status === 'draft')).toHaveLength(1)
+    expect((await graphs.getDesignGraph(fixture.document.id))?.nodes.find((node) => node.id === 'node_dashboard_title')?.parentId).toBe(null)
+  })
+
+  it('refuses a proposal whose base is not the current working version', async () => {
+    const { service } = await setup()
+    const firstDraft = await service.createDraft(fixture.document.id, 'designer')
+    await service.approveVersion(firstDraft.id, 'reviewer')
+    const workingDraft = await service.createDraft(fixture.document.id, 'designer-2')
+
+    // Once editing resumes on a draft, the approved snapshot is no longer the base.
+    await expect(service.createProposal({
+      projectId: fixture.project.id,
+      documentId: fixture.document.id,
+      baseVersionId: firstDraft.id,
+      operations: [{ type: 'deleteNode', nodeId: 'node_status_badge' }],
+      rationale: 'Remove the badge.',
+      author: 'design-assistant',
+    })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' })
+
+    // The working draft itself is a valid base.
+    const proposal = await service.createProposal({
+      projectId: fixture.project.id,
+      documentId: fixture.document.id,
+      baseVersionId: workingDraft.id,
+      operations: [{ type: 'deleteNode', nodeId: 'node_status_badge' }],
+      rationale: 'Remove the badge.',
+      author: 'design-assistant',
+    })
+    expect(proposal.baseVersionId).toBe(workingDraft.id)
+  })
+
   it('records invalid proposals and refuses to approve them', async () => {
     const { service } = await setup()
     const draft = await service.createDraft(fixture.document.id, 'designer')

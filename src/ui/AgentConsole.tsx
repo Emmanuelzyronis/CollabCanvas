@@ -6,6 +6,8 @@ import { isLlmConfigured } from '../agent/llm'
 import AiSettings from './AiSettings'
 import { Icon } from './icons'
 import type { ActivityKind } from '../types'
+import { useWorkspaceContext } from '../workspace'
+import { buildIntelligenceContext } from '../features/intelligence'
 
 /**
  * The in-page Agent Console. A chat-style panel where the human types natural
@@ -55,6 +57,9 @@ function timeAgo(at: number): string {
 }
 
 export default function AgentConsole() {
+  const workspace = useWorkspaceContext()
+  const runtimeSelection = useCanvasStore((s) => s.selection)
+  const intelligence = buildIntelligenceContext({ availability: workspace.availability, identifiers: workspace, graph: workspace.graph, selectedNodeIds: runtimeSelection, error: workspace.error?.message })
   const [open, setOpen] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const aiOn = isLlmConfigured()
@@ -83,7 +88,7 @@ export default function AgentConsole() {
     setMsgs((m) => [...m, { id: nextId.current++, role: 'user', text }])
     setBusy(true)
     try {
-      const res = await runCommand(text)
+      const res = await runCommand(text, undefined, intelligence)
       const reply = res.reply || (res.ok ? 'Done.' : 'Something went wrong.')
       setMsgs((m) => [...m, { id: nextId.current++, role: 'agent', text: reply, error: !res.ok }])
     } catch (e) {

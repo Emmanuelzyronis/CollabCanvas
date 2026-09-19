@@ -1,3 +1,3 @@
-export * from './contracts'
-export * from './auth'
-export * from './agent-gateway'
+export * from './contracts.js'
+export * from './auth.js'
+export * from './agent-gateway.js'

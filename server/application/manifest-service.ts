@@ -1,9 +1,9 @@
-import type { DesignDocument } from '../domain/contracts'
-import { GraphValidationError } from '../domain/graph-validation'
-import { compileDesignManifest, ManifestCompilationError } from '../domain/manifest-compiler'
-import { DomainError } from '../domain/errors'
-import type { DesignManifest } from '../domain/manifest-types'
-import type { DesignGraphRepository, DesignRepository } from '../persistence/repository'
+import type { DesignDocument } from '../domain/contracts.js'
+import { GraphValidationError } from '../domain/graph-validation.js'
+import { compileDesignManifest, ManifestCompilationError } from '../domain/manifest-compiler.js'
+import { DomainError } from '../domain/errors.js'
+import type { DesignManifest } from '../domain/manifest-types.js'
+import type { DesignGraphRepository, DesignRepository } from '../persistence/repository.js'
 
 export interface ManifestApplication {
   getDocumentManifest(documentId: string): Promise<DesignManifest>

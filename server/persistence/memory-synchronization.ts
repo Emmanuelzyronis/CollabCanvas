@@ -1,5 +1,5 @@
-import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types'
-import type { SynchronizationRepository } from './synchronization-repository'
+import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types.js'
+import type { SynchronizationRepository } from './synchronization-repository.js'
 
 /** Development repository; durable implementation linkage is a later persistence slice. */
 export class MemorySynchronizationRepository implements SynchronizationRepository {

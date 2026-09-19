@@ -108,6 +108,7 @@ export interface InspectorNodeProjection {
   readonly properties: DeepReadonly<DesignNode['properties']>
   readonly layout: DeepReadonly<DesignNode['layout']>
   readonly tokenReferences: readonly ProjectedTokenReference[]
+  readonly availableTokens: readonly DeepReadonly<DesignToken>[]
   readonly typography: DeepReadonly<TypographyDefinition> | null
   readonly responsive: DeepReadonly<NonNullable<DesignNode['responsive']>>
   readonly accessibility: DeepReadonly<DesignNode['accessibility']> | null
@@ -326,6 +327,9 @@ function inspectorNodeFromContext(context: ProjectionContext, nodeId: string): I
     tokenReferences: Object.entries(node.tokenRefs ?? {})
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([slot, tokenId]) => ({ slot, tokenId, token: structuredClone(context.tokenById.get(tokenId)!) })),
+    availableTokens: [...context.tokenById.values()]
+      .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
+      .map((token) => structuredClone(token)),
     typography: node.typographyId ? structuredClone(context.typographyById.get(node.typographyId)!) : null,
     responsive: structuredClone(node.responsive ?? []),
     accessibility: node.accessibility ? structuredClone(node.accessibility) : null,

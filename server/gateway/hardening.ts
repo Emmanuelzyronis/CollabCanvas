@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AuditContext, GatewayErrorCode, GatewayOperation } from './contracts'
+import type { AuditContext, GatewayErrorCode, GatewayOperation } from './contracts.js'
 
 export interface AuditEvent {
   readonly id: string

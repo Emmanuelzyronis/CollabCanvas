@@ -1,11 +1,11 @@
-import { AgentGateway, GatewayError, type GatewayRequest } from '../gateway'
-import type { DesignManifest } from '../domain/manifest-types'
+import { AgentGateway, GatewayError, type GatewayRequest } from '../gateway/index.js'
+import type { DesignManifest } from '../domain/manifest-types.js'
 import {
   type GetManifestToolInput,
   type GetManifestToolResponse,
   type SemanticToolDefinition,
   type SemanticToolResult,
-} from './contracts'
+} from './contracts.js'
 
 type GatewayReader = Pick<AgentGateway, 'readManifest'>
 

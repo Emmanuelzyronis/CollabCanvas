@@ -14,9 +14,9 @@ import type {
   StateMetadata,
   TokenReferenceMap,
   TypographyDefinition,
-} from './graph-types'
+} from './graph-types.js'
 
-export type { JsonObject, JsonPrimitive, JsonValue } from './graph-types'
+export type { JsonObject, JsonPrimitive, JsonValue } from './graph-types.js'
 export type {
   AccessibilityMetadata,
   AssetReference,
@@ -32,8 +32,8 @@ export type {
   StateMetadata,
   TokenReferenceMap,
   TypographyDefinition,
-} from './graph-types'
-export { NODE_TYPES } from './graph-types'
+} from './graph-types.js'
+export { NODE_TYPES } from './graph-types.js'
 
 export interface Project {
   id: string

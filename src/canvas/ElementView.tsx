@@ -1,39 +1,8 @@
 import { memo } from 'react'
 import type { CanvasElement } from '../types'
 import { clipToBox, elementRect, SVG_ANCHOR } from '../store/geometry'
-
-/** Rough word-wrap so multi-line text renders with native <tspan> (PNG-export safe). */
-function wrapText(text: string, widthPx: number, fontSize: number): string[] {
-  const maxChars = Math.max(1, Math.floor(widthPx / (fontSize * 0.56)))
-  const out: string[] = []
-  for (const para of text.split('\n')) {
-    if (para.length === 0) {
-      out.push('')
-      continue
-    }
-    let line = ''
-    for (const word of para.split(' ')) {
-      const candidate = line ? `${line} ${word}` : word
-      if (candidate.length <= maxChars) {
-        line = candidate
-      } else {
-        if (line) out.push(line)
-        if (word.length > maxChars) {
-          let w = word
-          while (w.length > maxChars) {
-            out.push(w.slice(0, maxChars))
-            w = w.slice(maxChars)
-          }
-          line = w
-        } else {
-          line = word
-        }
-      }
-    }
-    out.push(line)
-  }
-  return out
-}
+import { coverImageRect } from './imageFill'
+import { wrapTextToWidth } from '../graph/textMetrics'
 
 function TextContent({ el }: { el: CanvasElement }) {
   if (!el.text) return null
@@ -41,8 +10,13 @@ function TextContent({ el }: { el: CanvasElement }) {
   const pad = el.type === 'sticky' ? 14 : el.type === 'text' ? 2 : 10
   const anchor = SVG_ANCHOR[el.textAlign]
   const x = el.textAlign === 'left' ? r.minX + pad : el.textAlign === 'right' ? r.maxX - pad : r.cx
-  const lines = wrapText(el.text, Math.max(r.width - pad * 2, 20), el.fontSize)
-  const lineHeight = el.fontSize * 1.25
+  const lines = wrapTextToWidth(el.text, Math.max(r.width - pad * 2, 20), {
+    fontSize: el.fontSize,
+    fontWeight: el.fontWeight,
+    fontFamily: el.fontFamily,
+    lineHeight: el.lineHeight,
+  })
+  const lineHeight = el.fontSize * el.lineHeight
   const middle = el.type !== 'text'
   const totalH = lines.length * lineHeight
   const startY = middle ? r.cy - totalH / 2 + lineHeight / 2 : r.minY + pad + el.fontSize / 2
@@ -52,7 +26,7 @@ function TextContent({ el }: { el: CanvasElement }) {
       fontWeight={el.fontWeight}
       fill={el.textColor}
       textAnchor={anchor}
-      style={{ userSelect: 'none', pointerEvents: 'none', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
+      style={{ userSelect: 'none', pointerEvents: 'none', fontFamily: el.fontFamily }}
     >
       {lines.map((ln, i) => (
         <tspan key={i} x={x} y={startY + i * lineHeight} dominantBaseline="middle">
@@ -60,6 +34,25 @@ function TextContent({ el }: { el: CanvasElement }) {
         </tspan>
       ))}
     </text>
+  )
+}
+
+/** An image drawn as a cover-fill inside its frame, clipped to the frame radius. */
+function ImageFill({ el, rect }: { el: CanvasElement; rect: ReturnType<typeof elementRect> }) {
+  const cover = coverImageRect({ width: el.imageWidth, height: el.imageHeight }, rect)
+  if (!cover) {
+    return <image href={el.imageSrc} x={rect.minX} y={rect.minY} width={rect.width} height={rect.height} preserveAspectRatio="xMidYMid slice" pointerEvents="none" />
+  }
+  const clipId = `clip-${el.id}`
+  return (
+    <g>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={rect.minX} y={rect.minY} width={rect.width} height={rect.height} rx={el.borderRadius} />
+        </clipPath>
+      </defs>
+      <image href={el.imageSrc} x={cover.x} y={cover.y} width={cover.width} height={cover.height} preserveAspectRatio="none" clipPath={`url(#${clipId})`} pointerEvents="none" />
+    </g>
   )
 }
 
@@ -79,7 +72,12 @@ export const ShapeView = memo(function ShapeView({ el }: { el: CanvasElement }) 
     case 'text':
       return (
         <g>
-          {el.type === 'rectangle' && <rect x={r.minX} y={r.minY} width={r.width} height={r.height} rx={8} {...common} />}
+          {el.type === 'rectangle' && el.imageSrc ? (
+            <g opacity={el.opacity}>
+              <rect x={r.minX} y={r.minY} width={r.width} height={r.height} rx={el.borderRadius} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+              <ImageFill el={el} rect={r} />
+            </g>
+          ) : el.type === 'rectangle' ? <rect x={r.minX} y={r.minY} width={r.width} height={r.height} rx={el.borderRadius} {...common} /> : null}
           <TextContent el={el} />
         </g>
       )

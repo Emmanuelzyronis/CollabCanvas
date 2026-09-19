@@ -1,4 +1,4 @@
-import type { DesignGraph, DesignNode, JsonObject, JsonValue, PageGraph } from './contracts'
+import type { DesignGraph, DesignNode, JsonObject, JsonValue, PageGraph } from './contracts.js'
 
 function sortKeys(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(sortKeys)

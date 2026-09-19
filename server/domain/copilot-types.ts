@@ -1,5 +1,5 @@
-import type { ComponentDefinition, ComponentInstance, DesignDocument, DesignIntent, DesignNode, DesignToken, Page, Project, TypographyDefinition } from './contracts'
-import type { DesignChangeOperation } from './version-types'
+import type { ComponentDefinition, ComponentInstance, DesignDocument, DesignIntent, DesignNode, DesignToken, Page, Project, TypographyDefinition } from './contracts.js'
+import type { DesignChangeOperation, DesignProposal } from './version-types.js'
 
 export interface CopilotContext {
   project: Pick<Project, 'id' | 'name' | 'slug'>
@@ -23,12 +23,34 @@ export interface CopilotPlan {
 export interface CopilotRequest {
   projectId: string
   documentId: string
+  pageId?: string
   baseVersionId: string
+  /** Client context hint; the server independently verifies it is current and approved. */
+  trustedVersionId?: string
   instruction: string
   selectedNodeIds?: readonly string[]
   author: string
 }
 
+export type CopilotGenerationStatus = 'ready' | 'clarification' | 'blocked'
+
+export interface CopilotProposalPreview {
+  status: CopilotGenerationStatus
+  projectId: string
+  documentId: string
+  pageId: string
+  baseVersionId: string
+  summary: string
+  rationale?: string
+  operations: DesignChangeOperation[]
+  affectedResourceIds: string[]
+  validation: { valid: boolean; issues: Array<{ code: string; path: string; message: string }> }
+  proposal?: DesignProposal
+  clarification?: string
+}
+
 export interface CopilotPlanner {
+  /** Product-level label for which assistant is answering; never a credential. */
+  readonly provider?: 'azure-openai' | 'builtin'
   plan(context: CopilotContext, instruction: string): Promise<CopilotPlan>
 }

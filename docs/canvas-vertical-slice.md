@@ -41,11 +41,12 @@ Only loading one document graph, moving one node, and deleting one node (with
 its descendants) are included. The 33 existing browser WebMCP tools, their
 Zustand behavior, and the SVG renderer remain unchanged.
 
-`MemoryDesignGraphRepository` now supports graph writes for tests and local
-development. PostgreSQL still implements only the original Layer 1 relational
-repository and does not fully hydrate the richer Layer 2 graph. The canvas
-slice consequently preserves `GRAPH_UNAVAILABLE` when a complete graph source
-is not configured; it does not fabricate a partial graph.
+`MemoryDesignGraphRepository` supports graph writes for tests and local
+development. PostgreSQL now persists and hydrates the complete canonical graph
+through the document-scoped `design_graphs` aggregate; B7 Level 2 verifies the
+repository, application, API, and frontend query path. The slice still
+preserves `GRAPH_UNAVAILABLE` when no canonical graph source is configured and
+does not fabricate a partial graph.
 
 Future canvas integrations can provide an API-backed implementation of the
 same application client without changing the projection or domain operations.

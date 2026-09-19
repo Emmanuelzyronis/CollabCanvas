@@ -1,10 +1,12 @@
-import type { DesignGraph } from '../../server/domain/contracts'
+import type { DesignGraph, DesignNode } from '../../server/domain/contracts'
 import type { Author } from '../types'
 import { loadGraphIntoCanvas, type LoadCanvasSnapshot } from './canvasStoreAdapter'
 
 export interface CanvasGraphApplicationClient {
   getDocumentGraph(documentId: string): Promise<DesignGraph>
   moveNode(documentId: string, nodeId: string, parentId: string | null, orderIndex?: number): Promise<DesignGraph>
+  updateNode(documentId: string, nodeId: string, patch: Partial<Omit<DesignNode, 'id' | 'pageId'>>): Promise<DesignGraph>
+  resizeNode(documentId: string, nodeId: string, width: number, height: number, x?: number, y?: number): Promise<DesignGraph>
   deleteNode(documentId: string, nodeId: string): Promise<DesignGraph>
 }
 
@@ -30,6 +32,14 @@ export class CanvasGraphController {
 
   async moveNode(documentId: string, nodeId: string, parentId: string | null, orderIndex?: number, author: Author = 'human'): Promise<DesignGraph> {
     return this.apply(await this.application.moveNode(documentId, nodeId, parentId, orderIndex), author)
+  }
+
+  async updateNode(documentId: string, nodeId: string, patch: Partial<Omit<DesignNode, 'id' | 'pageId'>>, author: Author = 'human'): Promise<DesignGraph> {
+    return this.apply(await this.application.updateNode(documentId, nodeId, patch), author)
+  }
+
+  async resizeNode(documentId: string, nodeId: string, width: number, height: number, x?: number, y?: number, author: Author = 'human'): Promise<DesignGraph> {
+    return this.apply(await this.application.resizeNode(documentId, nodeId, width, height, x, y), author)
   }
 
   async deleteNode(documentId: string, nodeId: string, author: Author = 'human'): Promise<DesignGraph> {

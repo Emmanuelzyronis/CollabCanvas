@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { AgentIdentity, AuthenticatedAgent, GatewayCapability } from './contracts'
-import { GatewayError, type AuditContext } from './contracts'
+import type { AgentIdentity, AuthenticatedAgent, GatewayCapability } from './contracts.js'
+import { GatewayError, type AuditContext } from './contracts.js'
 
 export interface GatewayAuthenticator {
   authenticate(credential: string | undefined, auditContext: AuditContext): Promise<AuthenticatedAgent>

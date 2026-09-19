@@ -13,7 +13,10 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "workflow:human": "node e2e/human-design-workflow.mjs",
+    "workflow:presets": "node e2e/preset-workflow.mjs",
+    "workflow:mvp": "node e2e/mvp-thread.mjs"
   },
   "dependencies": {
     "@mcp-b/global": "^5.1.0",

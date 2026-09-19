@@ -1,11 +1,11 @@
-import type { AgentHandoff } from './agent-handoff-service'
-import { AgentHandoffApplicationService } from './agent-handoff-service'
-import { VersioningApplicationService, type VersionServiceDeps } from './version-service'
-import { createInvoiceFlowGraph } from '../domain/fixtures/invoiceflow'
-import type { DesignGraph, DesignNode, Project, DesignDocument, Page } from '../domain/contracts'
-import type { DesignGraphRepository, DesignGraphWriter, DesignRepository } from '../persistence/repository'
-import type { DesignVersion } from '../domain/version-types'
-import type { VersionRepository } from '../persistence/version-repository'
+import type { AgentHandoff } from './agent-handoff-service.js'
+import { AgentHandoffApplicationService } from './agent-handoff-service.js'
+import { VersioningApplicationService, type VersionServiceDeps } from './version-service.js'
+import { createInvoiceFlowGraph } from '../domain/fixtures/invoiceflow.js'
+import type { DesignGraph, DesignNode, Project, DesignDocument, Page } from '../domain/contracts.js'
+import type { DesignGraphRepository, DesignGraphWriter, DesignRepository } from '../persistence/repository.js'
+import type { DesignVersion } from '../domain/version-types.js'
+import type { VersionRepository } from '../persistence/version-repository.js'
 
 export interface InvoiceFlowProofResult {
   readonly graph: DesignGraph

@@ -2,6 +2,8 @@ import { callTool } from '../mcp/registry'
 import { useCanvasStore } from '../store/store'
 import { interpret, type PlannedCall } from './intent'
 import { canUseAi, runWithAi } from './aiRunner'
+import type { IntelligenceContext } from '../features/intelligence'
+import { canUseIntelligence } from '../features/intelligence'
 
 /**
  * Bridges the natural-language interpreter to the WebMCP registry. Most planned
@@ -68,7 +70,10 @@ function textOf(res: { content?: Array<{ type: string; text?: string }> }): stri
  * to the deterministic rule-based interpreter below, so the app never
  * hard-fails and works out of the box with no key.
  */
-export async function runCommand(input: string, signal?: AbortSignal): Promise<RunResult> {
+export async function runCommand(input: string, signal?: AbortSignal, intelligence?: IntelligenceContext): Promise<RunResult> {
+  if (intelligence && !canUseIntelligence(intelligence)) {
+    return { ok: false, reply: intelligence.state === 'GRAPH_INVALID' ? 'I cannot use this design context because the canonical graph is invalid.' : 'I cannot use design intelligence until the canonical graph is available.' }
+  }
   if (canUseAi()) {
     try {
       return await runWithAi(input, signal)

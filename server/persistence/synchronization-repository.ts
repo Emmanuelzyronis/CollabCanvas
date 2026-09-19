@@ -1,4 +1,4 @@
-import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types'
+import type { ImplementationStatusReport, SynchronizationProposal } from '../domain/synchronization-types.js'
 
 export interface ImplementationStatusRepository {
   saveImplementationStatus(report: ImplementationStatusReport): Promise<ImplementationStatusReport>

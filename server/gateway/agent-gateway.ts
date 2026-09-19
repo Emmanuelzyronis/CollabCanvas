@@ -1,8 +1,8 @@
-import type { AgentHandoff } from '../application/agent-handoff-service'
-import type { ManifestApplication } from '../application/manifest-service'
-import type { SynchronizationApplicationService } from '../application/synchronization-service'
-import { DomainError } from '../domain/errors'
-import type { DesignManifest } from '../domain/manifest-types'
+import type { AgentHandoff } from '../application/agent-handoff-service.js'
+import type { ManifestApplication } from '../application/manifest-service.js'
+import type { SynchronizationApplicationService } from '../application/synchronization-service.js'
+import { DomainError } from '../domain/errors.js'
+import type { DesignManifest } from '../domain/manifest-types.js'
 import {
   GATEWAY_CAPABILITIES,
   GatewayError,
@@ -17,9 +17,9 @@ import {
   type GatewaySynchronizationProposalRequest,
   type GatewayImplementationStatusResponse,
   type GatewaySynchronizationProposalResponse,
-} from './contracts'
-import type { GatewayAuthenticator } from './auth'
-import { createAuditEvent, type GatewayHardeningOptions } from './hardening'
+} from './contracts.js'
+import type { GatewayAuthenticator } from './auth.js'
+import { createAuditEvent, type GatewayHardeningOptions } from './hardening.js'
 
 function createAuditContext(request: GatewayRequest | GatewayApprovedVersionRequest, agentId: string | null, outcome: AuditContext['outcome'], operation: AuditContext['operation']): AuditContext {
   return Object.freeze({

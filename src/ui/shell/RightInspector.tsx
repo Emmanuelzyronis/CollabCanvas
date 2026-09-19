@@ -1,9 +1,19 @@
 import { IconButton, Panel, Stack, Text } from '../foundation'
 import { Icon } from '../icons'
 import { useCanvasStore } from '../../store/store'
+import type { InspectorProjection } from '../../graph/graphProjection'
+import type { DesignNode } from '../../../server/domain/contracts'
+import { InspectorPanel } from '../inspector'
 
-export default function RightInspector({ onClose }: { onClose?: () => void }) {
-  const selectionCount = useCanvasStore((state) => state.selection.length)
+export interface RightInspectorProps {
+  onClose?: () => void
+  inspectorProjection?: InspectorProjection
+  onUpdateNode?: (nodeId: string, patch: Partial<Omit<DesignNode, 'id' | 'pageId'>>) => Promise<void>
+}
+
+export default function RightInspector({ onClose, inspectorProjection, onUpdateNode }: RightInspectorProps) {
+  const runtimeSelectionCount = useCanvasStore((state) => state.selection.length)
+  const selectionCount = inspectorProjection?.count ?? runtimeSelectionCount
 
   return (
     <Panel elevation="none" className="flex h-full min-h-0 flex-col rounded-none border-0 bg-panel">
@@ -15,9 +25,7 @@ export default function RightInspector({ onClose }: { onClose?: () => void }) {
         {onClose ? <div className="cc-shell-compact-only"><IconButton id="inspector-close" label="Close inspector" size="sm" onClick={onClose}><Icon name="close" size={16} /></IconButton></div> : null}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="flex min-h-40 items-center justify-center rounded-card border border-dashed border-border-strong px-4 text-center">
-          <Text role="caption" muted>{selectionCount > 0 ? 'Canvas selection active.' : 'Select a canvas element to inspect its context.'}</Text>
-        </div>
+        <InspectorPanel projection={inspectorProjection} onUpdateNode={onUpdateNode} />
       </div>
     </Panel>
   )

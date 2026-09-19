@@ -1,5 +1,5 @@
-import type { DesignGraph } from '../domain/contracts'
-import type { DesignGraphRepository, DesignGraphWriter } from './repository'
+import type { DesignGraph } from '../domain/contracts.js'
+import type { DesignGraphRepository, DesignGraphWriter } from './repository.js'
 
 /** Test/development graph source; not a substitute for production persistence. */
 export class MemoryDesignGraphRepository implements DesignGraphRepository, DesignGraphWriter {

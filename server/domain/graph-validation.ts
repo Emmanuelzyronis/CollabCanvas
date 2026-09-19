@@ -1,5 +1,5 @@
-import type { DesignGraph, DesignNode } from './contracts'
-import { NODE_TYPES, type NodeType } from './graph-types'
+import type { DesignGraph, DesignNode } from './contracts.js'
+import { NODE_TYPES, type NodeType } from './graph-types.js'
 
 export type GraphValidationCode =
   | 'DUPLICATE_ID'

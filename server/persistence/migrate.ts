@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createPostgresPool } from './postgres'
+import { createPostgresPool } from './postgres.js'
 
 const migrationDirectory = fileURLToPath(new URL('../../db/migrations', import.meta.url))
 const pool = createPostgresPool()

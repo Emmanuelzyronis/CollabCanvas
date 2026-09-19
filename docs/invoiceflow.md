@@ -46,13 +46,11 @@ they are not part of the manifest itself.
 
 ## Current limitation
 
-This proof uses `MemoryDesignRepository`, `MemoryDesignGraphRepository`, and
-`MemoryVersionRepository` so the complete Layer 2 graph can be exercised in
-tests and local development. PostgreSQL currently persists/hydrates only the
-Layer 1 project/document/page/node foundation and does not yet implement the
-richer graph writer/read aggregate. The proof therefore does not claim a
-complete production InvoiceFlow persistence path; it preserves the explicit
-`GRAPH_UNAVAILABLE` behavior until that hydration work is implemented.
+This proof uses typed in-memory repositories for deterministic orchestration in
+tests and local development. The canonical PostgreSQL workspace path is now
+verified separately by B7 Level 2 using the `design_graphs` JSONB aggregate.
+The proof remains a development/test orchestration and does not claim to be the
+InvoiceFlow product application or a production deployment.
 
 ## Deferred
 

@@ -1,6 +1,6 @@
-import { DomainError } from '../domain/errors'
-import type { DesignRepository } from './repository'
-import type { DesignDocument, DesignNode, Page, PageGraph, Project } from '../domain/contracts'
+import { DomainError } from '../domain/errors.js'
+import type { DesignRepository } from './repository.js'
+import type { DesignDocument, DesignNode, Page, PageGraph, Project } from '../domain/contracts.js'
 
 /** Isolated repository used by unit/API tests; production uses PostgresRepository. */
 export class MemoryDesignRepository implements DesignRepository {

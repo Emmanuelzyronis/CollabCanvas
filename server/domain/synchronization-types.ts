@@ -1,4 +1,4 @@
-import type { SemanticChange, VersionComparison } from './version-types'
+import type { SemanticChange, VersionComparison } from './version-types.js'
 
 export const IMPLEMENTATION_STATUSES = [
   'connected',

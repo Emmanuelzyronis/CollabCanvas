@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
-import { DomainError } from '../domain/errors'
-import { GraphValidationError } from '../domain/graph-validation'
-import { compileDesignManifest, ManifestCompilationError } from '../domain/manifest-compiler'
-import { serializeDesignManifest } from '../domain/manifest-serialization'
-import type { DesignManifest } from '../domain/manifest-types'
-import type { VersionRepository } from '../persistence/version-repository'
+import { DomainError } from '../domain/errors.js'
+import { GraphValidationError } from '../domain/graph-validation.js'
+import { compileDesignManifest, ManifestCompilationError } from '../domain/manifest-compiler.js'
+import { serializeDesignManifest } from '../domain/manifest-serialization.js'
+import type { DesignManifest } from '../domain/manifest-types.js'
+import type { VersionRepository } from '../persistence/version-repository.js'
 
 export interface AgentHandoff {
   handoffVersion: '1'
