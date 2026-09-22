@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { InspectorNodeProjection, InspectorProjection } from '../../graph/graphProjection'
 import { defaultAppearance } from '../../graph/canvasProjection'
 import type { DesignNode, JsonObject, TokenReferenceMap } from '../../../server/domain/contracts'
+import type { Alignment, Dimension, Justify, LayoutDirection, LayoutDisplay, LayoutPosition } from '../../../server/domain/graph-types'
 
 export interface InspectorPanelProps {
   projection?: InspectorProjection
@@ -118,6 +119,27 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
   const [layoutY, setLayoutY] = useState(() => String(numericLayout(node.layout.y) ?? ''))
   const [layoutWidth, setLayoutWidth] = useState(() => String(numericLayout(node.layout.width) ?? ''))
   const [layoutHeight, setLayoutHeight] = useState(() => String(numericLayout(node.layout.height) ?? ''))
+
+  // --- sizing mode ---
+  const dimensionMode = (d: Dimension | undefined): 'fixed' | 'fill' | 'hug' =>
+    d === 'fill' ? 'fill' : (d === 'auto' || d === undefined) ? 'hug' : typeof d === 'number' ? 'fixed' : 'hug'
+  const [widthMode, setWidthMode] = useState<'fixed' | 'fill' | 'hug'>(() => dimensionMode(node.layout.width))
+  const [heightMode, setHeightMode] = useState<'fixed' | 'fill' | 'hug'>(() => dimensionMode(node.layout.height))
+
+  // --- stack controls ---
+  const CONTAINER_TYPES = new Set(['frame', 'section', 'container', 'card'])
+  const isContainer = CONTAINER_TYPES.has(node.metadata.type)
+  const [display, setDisplay] = useState<LayoutDisplay | 'none'>(() => node.layout.display ?? 'none')
+  const isStack = display === 'flex' || display === 'stack'
+  const [direction, setDirection] = useState<LayoutDirection>(() => node.layout.direction ?? 'column')
+  const [gap, setGap] = useState(() => String(typeof node.layout.gap === 'number' ? node.layout.gap : typeof node.layout.gap === 'string' ? node.layout.gap : 0))
+  const [padTop, setPadTop] = useState(() => String(node.layout.padding?.top ?? 0))
+  const [padRight, setPadRight] = useState(() => String(node.layout.padding?.right ?? 0))
+  const [padBottom, setPadBottom] = useState(() => String(node.layout.padding?.bottom ?? 0))
+  const [padLeft, setPadLeft] = useState(() => String(node.layout.padding?.left ?? 0))
+  const [align, setAlign] = useState<Alignment>(() => node.layout.align ?? 'start')
+  const [justify, setJustify] = useState<Justify>(() => node.layout.justify ?? 'start')
+  const [position, setPosition] = useState<LayoutPosition | 'flow'>(() => node.layout.position ?? 'flow')
   const initialText = typeof node.properties.text === 'string' ? node.properties.text : ''
   const style = node.properties.style && typeof node.properties.style === 'object' && !Array.isArray(node.properties.style) ? node.properties.style as Record<string, unknown> : {}
   const appearance = useMemo(() => defaultAppearance(node.metadata.type), [node.metadata.type])
@@ -145,6 +167,18 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
     setLayoutY(String(numericLayout(node.layout.y) ?? ''))
     setLayoutWidth(String(numericLayout(node.layout.width) ?? ''))
     setLayoutHeight(String(numericLayout(node.layout.height) ?? ''))
+    setWidthMode(dimensionMode(node.layout.width))
+    setHeightMode(dimensionMode(node.layout.height))
+    setDisplay(node.layout.display ?? 'none')
+    setDirection(node.layout.direction ?? 'column')
+    setGap(String(typeof node.layout.gap === 'number' ? node.layout.gap : typeof node.layout.gap === 'string' ? node.layout.gap : 0))
+    setPadTop(String(node.layout.padding?.top ?? 0))
+    setPadRight(String(node.layout.padding?.right ?? 0))
+    setPadBottom(String(node.layout.padding?.bottom ?? 0))
+    setPadLeft(String(node.layout.padding?.left ?? 0))
+    setAlign(node.layout.align ?? 'start')
+    setJustify(node.layout.justify ?? 'start')
+    setPosition(node.layout.position ?? 'flow')
     setText(typeof node.properties.text === 'string' ? node.properties.text : '')
     const nextStyle = node.properties.style && typeof node.properties.style === 'object' && !Array.isArray(node.properties.style) ? node.properties.style as Record<string, unknown> : {}
     setFontFamily(String(nextStyle.fontFamily ?? 'Inter, ui-sans-serif, system-ui, sans-serif'))
@@ -161,6 +195,43 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
     const next = Number(value)
     if (value.trim() === '' || !Number.isFinite(next)) return
     void commit({ layout: { ...node.layout, [field]: next } })
+  }
+
+  const commitWidthMode = (mode: 'fixed' | 'fill' | 'hug') => {
+    setWidthMode(mode)
+    const width: Dimension = mode === 'fill' ? 'fill' : mode === 'hug' ? 'auto' : (numericLayout(node.layout.width) ?? 160)
+    void commit({ layout: { ...node.layout, width } })
+  }
+
+  const commitHeightMode = (mode: 'fixed' | 'fill' | 'hug') => {
+    setHeightMode(mode)
+    const height: Dimension = mode === 'fill' ? 'fill' : mode === 'hug' ? 'auto' : (numericLayout(node.layout.height) ?? 80)
+    void commit({ layout: { ...node.layout, height } })
+  }
+
+  const commitDisplay = (next: LayoutDisplay | 'none') => {
+    setDisplay(next)
+    void commit({ layout: { ...node.layout, display: next === 'none' ? undefined : next } })
+  }
+
+  const commitLayoutField = <K extends keyof DesignNode['layout']>(field: K, value: DesignNode['layout'][K]) => {
+    void commit({ layout: { ...node.layout, [field]: value } })
+  }
+
+  const commitGap = (value: string) => {
+    const next = Number(value)
+    if (!Number.isFinite(next)) return
+    void commit({ layout: { ...node.layout, gap: next } })
+  }
+
+  const commitPadding = (top: string, right: string, bottom: string, left: string) => {
+    const n = (s: string) => { const v = Number(s); return Number.isFinite(v) ? v : 0 }
+    void commit({ layout: { ...node.layout, padding: { top: n(top), right: n(right), bottom: n(bottom), left: n(left) } } })
+  }
+
+  const commitZOrder = (delta: number) => {
+    const siblings = node.ancestry.length === 0 ? [] : []
+    void commit({ orderIndex: Math.max(0, node.metadata.orderIndex + delta) })
   }
   const textNodeType = node.metadata.type === 'text' || node.metadata.type === 'heading' || node.metadata.type === 'button'
   /** Any element that renders text can be edited as text, not only the text tools. */
@@ -235,19 +306,113 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
       </InspectorSection> : null}
 
       <InspectorSection title="Layout">
-        <div className="mb-3 grid grid-cols-2 gap-2">
-          <label className="grid min-w-0 gap-1 text-xs text-text-secondary">X
-            <input aria-label="Position X" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm text-text-primary" value={layoutX} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(event) => setLayoutX(event.target.value)} onBlur={() => commitLayoutNumber('x', layoutX)} />
+        <div className="grid gap-3">
+          {/* Sizing */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="grid min-w-0 gap-1">
+              <span className="text-xs text-text-secondary">Width</span>
+              <div className="flex gap-1">
+                <select aria-label="Width sizing" className="min-h-8 min-w-0 flex-1 rounded-control border border-border-default bg-panel px-1 text-xs text-text-primary" value={widthMode} disabled={!onUpdateNode || saving} onChange={(e) => commitWidthMode(e.target.value as 'fixed' | 'fill' | 'hug')}>
+                  <option value="fixed">Fixed</option>
+                  <option value="fill">Fill</option>
+                  <option value="hug">Hug</option>
+                </select>
+                {widthMode === 'fixed' && <input aria-label="Width value" inputMode="decimal" className="min-h-8 w-16 min-w-0 rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={layoutWidth} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(e) => setLayoutWidth(e.target.value)} onBlur={() => commitLayoutNumber('width', layoutWidth)} />}
+              </div>
+            </div>
+            <div className="grid min-w-0 gap-1">
+              <span className="text-xs text-text-secondary">Height</span>
+              <div className="flex gap-1">
+                <select aria-label="Height sizing" className="min-h-8 min-w-0 flex-1 rounded-control border border-border-default bg-panel px-1 text-xs text-text-primary" value={heightMode} disabled={!onUpdateNode || saving} onChange={(e) => commitHeightMode(e.target.value as 'fixed' | 'fill' | 'hug')}>
+                  <option value="fixed">Fixed</option>
+                  <option value="fill">Fill</option>
+                  <option value="hug">Hug</option>
+                </select>
+                {heightMode === 'fixed' && <input aria-label="Height value" inputMode="decimal" className="min-h-8 w-16 min-w-0 rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={layoutHeight} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(e) => setLayoutHeight(e.target.value)} onBlur={() => commitLayoutNumber('height', layoutHeight)} />}
+              </div>
+            </div>
+          </div>
+
+          {/* Position + XY */}
+          <label className="grid gap-1 text-xs text-text-secondary">Position
+            <select aria-label="Position type" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={position} disabled={!onUpdateNode || saving} onChange={(e) => { setPosition(e.target.value as LayoutPosition); commitLayoutField('position', e.target.value as LayoutPosition) }}>
+              <option value="flow">Flow (auto)</option>
+              <option value="absolute">Absolute</option>
+              <option value="sticky">Sticky</option>
+            </select>
           </label>
-          <label className="grid min-w-0 gap-1 text-xs text-text-secondary">Y
-            <input aria-label="Position Y" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm text-text-primary" value={layoutY} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(event) => setLayoutY(event.target.value)} onBlur={() => commitLayoutNumber('y', layoutY)} />
-          </label>
-          <label className="grid min-w-0 gap-1 text-xs text-text-secondary">Width
-            <input aria-label="Width" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm text-text-primary" value={layoutWidth} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(event) => setLayoutWidth(event.target.value)} onBlur={() => commitLayoutNumber('width', layoutWidth)} />
-          </label>
-          <label className="grid min-w-0 gap-1 text-xs text-text-secondary">Height
-            <input aria-label="Height" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm text-text-primary" value={layoutHeight} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(event) => setLayoutHeight(event.target.value)} onBlur={() => commitLayoutNumber('height', layoutHeight)} />
-          </label>
+          {position !== 'flow' && <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-xs text-text-secondary">X
+              <input aria-label="Position X" inputMode="decimal" className="min-h-8 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={layoutX} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(e) => setLayoutX(e.target.value)} onBlur={() => commitLayoutNumber('x', layoutX)} />
+            </label>
+            <label className="grid gap-1 text-xs text-text-secondary">Y
+              <input aria-label="Position Y" inputMode="decimal" className="min-h-8 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={layoutY} disabled={!onUpdateNode || saving} placeholder="auto" onChange={(e) => setLayoutY(e.target.value)} onBlur={() => commitLayoutNumber('y', layoutY)} />
+            </label>
+          </div>}
+
+          {/* Stack controls (container nodes only) */}
+          {isContainer && <>
+            <label className="grid gap-1 text-xs text-text-secondary">Arrange children
+              <select aria-label="Stack layout" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={display} disabled={!onUpdateNode || saving} onChange={(e) => commitDisplay(e.target.value as LayoutDisplay | 'none')}>
+                <option value="none">None (absolute)</option>
+                <option value="stack">Stack</option>
+                <option value="flex">Flex</option>
+              </select>
+            </label>
+
+            {isStack && <>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="grid gap-1 text-xs text-text-secondary">Direction
+                  <select aria-label="Stack direction" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={direction} disabled={!onUpdateNode || saving} onChange={(e) => { setDirection(e.target.value as LayoutDirection); commitLayoutField('direction', e.target.value as LayoutDirection) }}>
+                    <option value="column">↕ Column</option>
+                    <option value="row">↔ Row</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs text-text-secondary">Align
+                  <select aria-label="Align items" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={align} disabled={!onUpdateNode || saving} onChange={(e) => { setAlign(e.target.value as Alignment); commitLayoutField('align', e.target.value as Alignment) }}>
+                    <option value="start">Start</option>
+                    <option value="center">Center</option>
+                    <option value="end">End</option>
+                    <option value="stretch">Stretch</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs text-text-secondary">Justify
+                  <select aria-label="Justify content" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={justify} disabled={!onUpdateNode || saving} onChange={(e) => { setJustify(e.target.value as Justify); commitLayoutField('justify', e.target.value as Justify) }}>
+                    <option value="start">Start</option>
+                    <option value="center">Center</option>
+                    <option value="end">End</option>
+                    <option value="space-between">Space between</option>
+                    <option value="space-around">Space around</option>
+                    <option value="space-evenly">Space evenly</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="grid gap-1 text-xs text-text-secondary">Gap
+                <input aria-label="Gap" inputMode="decimal" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-2 text-xs text-text-primary" value={gap} disabled={!onUpdateNode || saving} onChange={(e) => setGap(e.target.value)} onBlur={() => commitGap(gap)} />
+              </label>
+
+              <div className="grid gap-1 text-xs text-text-secondary">
+                <span>Padding</span>
+                <div className="grid grid-cols-4 gap-1">
+                  {([['Top', padTop, setPadTop], ['Right', padRight, setPadRight], ['Bottom', padBottom, setPadBottom], ['Left', padLeft, setPadLeft]] as const).map(([label, val, setter]) => (
+                    <label key={label} className="grid gap-0.5 text-xs text-text-secondary">{label}
+                      <input aria-label={`Padding ${label}`} inputMode="decimal" className="min-h-8 w-full rounded-control border border-border-default bg-panel px-1 text-center text-xs text-text-primary" value={val} disabled={!onUpdateNode || saving} onChange={(e) => (setter as (v: string) => void)(e.target.value)} onBlur={() => commitPadding(padTop, padRight, padBottom, padLeft)} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>}
+          </>}
+
+          {/* Z-order */}
+          <div className="grid gap-1 text-xs text-text-secondary">
+            <span>Order</span>
+            <div className="flex gap-2">
+              <button type="button" aria-label="Bring forward" disabled={!onUpdateNode || saving} className="min-h-8 flex-1 rounded-control border border-border-default bg-panel px-2 text-xs text-text-secondary hover:bg-hover disabled:opacity-40" onClick={() => commitZOrder(-1)}>↑ Forward</button>
+              <button type="button" aria-label="Send backward" disabled={!onUpdateNode || saving} className="min-h-8 flex-1 rounded-control border border-border-default bg-panel px-2 text-xs text-text-secondary hover:bg-hover disabled:opacity-40" onClick={() => commitZOrder(1)}>↓ Backward</button>
+            </div>
+          </div>
         </div>
       </InspectorSection>
       <InspectorSection title="Role">
