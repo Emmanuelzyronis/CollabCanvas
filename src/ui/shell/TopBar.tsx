@@ -1,5 +1,6 @@
 import { IconButton, Inline, Text } from '../foundation'
 import { Icon } from '../icons'
+import ViewportToggle from '../../features/editor/ViewportToggle'
 import type { ShellWorkspaceContext } from './AppShell'
 
 interface TopBarProps {
@@ -29,8 +30,11 @@ export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpe
         </div>
       </Inline>
 
-      <div className="hidden min-w-0 flex-1 justify-center px-4 md:flex">
-        <Text as="div" role="label" muted className="truncate">{contextLabel}</Text>
+      <div className="hidden min-w-0 flex-1 items-center justify-center px-4 md:flex">
+        {workspace?.availability === 'GRAPH_AVAILABLE'
+          ? <ViewportToggle />
+          : <Text as="div" role="label" muted className="truncate">{contextLabel}</Text>
+        }
       </div>
 
       <Inline gap="2" className="shrink-0 cc-shell-compact-only">

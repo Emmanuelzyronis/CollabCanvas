@@ -7,6 +7,7 @@ import { CopilotProposalPanel } from '../copilot'
 import CanvasShell from '../../canvas/CanvasShell'
 import EditorToolbar from './EditorToolbar'
 import StartSurface from './StartSurface'
+import PreviewFrame from './PreviewFrame'
 import { createNodePayload, positionLayoutPatch, topLevelSelectedIds, type InsertRect } from './editorCommands'
 import type { EditorToolKind } from './editorModel'
 import { useEditorToolStore } from './editorToolStore'
@@ -164,16 +165,18 @@ export default function EditorWorkspace() {
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden" data-editor-workspace="true">
-      <CanvasShell
-        onResize={workspace.resizeNode}
-        onCommitMove={commitMove}
-        onDeleteNodes={deleteNodes}
-        onDuplicateNodes={duplicateNodes}
-        onInsertNode={insertAt}
-        onCommitText={commitText}
-        onHistoryUndo={undo}
-        onHistoryRedo={redo}
-      />
+      <PreviewFrame>
+        <CanvasShell
+          onResize={workspace.resizeNode}
+          onCommitMove={commitMove}
+          onDeleteNodes={deleteNodes}
+          onDuplicateNodes={duplicateNodes}
+          onInsertNode={insertAt}
+          onCommitText={commitText}
+          onHistoryUndo={undo}
+          onHistoryRedo={redo}
+        />
+      </PreviewFrame>
       {workspace.availability === 'GRAPH_AVAILABLE' ? <EditorToolbar /> : null}
       {showEmptyState ? <StartSurface onInsertAt={(kind, rect) => void insertAt(kind, rect)} /> : null}
 
