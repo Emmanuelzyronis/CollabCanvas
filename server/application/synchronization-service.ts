@@ -101,6 +101,14 @@ export class SynchronizationApplicationService {
     return report
   }
 
+  async listImplementationReports(projectId: string, documentId: string): Promise<ImplementationStatusReport[]> {
+    return this.reports.listImplementationStatus(requiredText(projectId, 'projectId'), requiredText(documentId, 'documentId'))
+  }
+
+  async listSyncProposals(projectId: string, documentId: string): Promise<SynchronizationProposal[]> {
+    return this.proposals.listSynchronizationProposals(requiredText(projectId, 'projectId'), requiredText(documentId, 'documentId'))
+  }
+
   async compareApprovedVersions(fromVersionId: string, toVersionId: string): Promise<ReturnType<typeof synchronizationImpact>> {
     const from = await this.versions.getVersion(requiredText(fromVersionId, 'fromVersionId'))
     const to = await this.versions.getVersion(requiredText(toVersionId, 'toVersionId'))

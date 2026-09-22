@@ -1,6 +1,7 @@
 import type { DesignDocument, DesignGraph, Page, Project } from '../../server/domain/contracts'
 import type { DesignManifest } from '../../server/domain/manifest-types'
 import type { DesignVersion } from '../../server/domain/version-types'
+import type { ImplementationStatusReport, SynchronizationProposal } from '../../server/domain/synchronization-types'
 
 export type EditorCommandName = 'create' | 'update' | 'move' | 'resize' | 'delete' | 'reorder' | 'duplicate'
 
@@ -108,6 +109,14 @@ export interface AssistantStatus {
 
 export function fetchAssistantStatus(): Promise<AssistantStatus> {
   return request<AssistantStatus>('/api/v1/assistant')
+}
+
+export function fetchImplementationReports(projectId: string, documentId: string): Promise<ImplementationStatusReport[]> {
+  return request<ImplementationStatusReport[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/implementation-status`)
+}
+
+export function fetchSyncProposals(projectId: string, documentId: string): Promise<SynchronizationProposal[]> {
+  return request<SynchronizationProposal[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(documentId)}/sync-proposals`)
 }
 
 export function workspaceErrorCode(error: unknown): string | null {

@@ -7,12 +7,14 @@ import { viewTools } from './view'
 import { exportTools } from './export'
 import { generateTools } from './generate'
 import { boardTools } from './board'
+import { canonicalTools } from './canonical'
 
 const getStore = (): CanvasStore => useCanvasStore.getState()
 
 /** The full CollabCanvas WebMCP tool suite, in a sensible presentation order. */
 export function allTools(): ToolDef[] {
   return [
+    ...canonicalTools(),
     ...createTools(getStore),
     ...editTools(getStore),
     ...generateTools(getStore),

@@ -16,23 +16,24 @@ import { GraphValidationError } from '../domain/graph-validation.js'
 import type { EditorCommandApplicationService } from '../application/editor-command-service.js'
 import type { EditorHistoryApplicationService, EditorHistoryOperation } from '../application/editor-history-service.js'
 import type { HumanWorkspaceService } from '../application/workspace-service.js'
+import type { SynchronizationApplicationService } from '../application/synchronization-service.js'
 import type { DesignVersion } from '../domain/version-types.js'
 
 type Route = { method: string; path: RegExp; handler: (params: Record<string, string>, body: Record<string, unknown>, request: IncomingMessage, url: URL, requestId: string) => Promise<unknown> }
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }
 
-export function createApiServer(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService): Server {
-  return createServer(createApiRequestHandler(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history))
+export function createApiServer(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService, synchronization?: SynchronizationApplicationService): Server {
+  return createServer(createApiRequestHandler(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history, synchronization))
 }
 
-export function createApiRequestHandler(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService) {
+export function createApiRequestHandler(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService, synchronization?: SynchronizationApplicationService) {
   return (request: IncomingMessage, response: ServerResponse) => {
-    void handleRequest(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history, request, response)
+    void handleRequest(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history, synchronization, request, response)
   }
 }
 
-async function handleRequest(service: DesignService, manifestService: ManifestApplication | undefined, gateway: AgentGateway | undefined, canvasGraph: CanvasGraphApplication | undefined, versioning: VersioningApplicationService | undefined, copilot: CopilotApplicationService | undefined, planner: CopilotPlanner | undefined, editor: EditorCommandApplicationService | undefined, workspaces: HumanWorkspaceService | undefined, history: EditorHistoryApplicationService | undefined, request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function handleRequest(service: DesignService, manifestService: ManifestApplication | undefined, gateway: AgentGateway | undefined, canvasGraph: CanvasGraphApplication | undefined, versioning: VersioningApplicationService | undefined, copilot: CopilotApplicationService | undefined, planner: CopilotPlanner | undefined, editor: EditorCommandApplicationService | undefined, workspaces: HumanWorkspaceService | undefined, history: EditorHistoryApplicationService | undefined, synchronization: SynchronizationApplicationService | undefined, request: IncomingMessage, response: ServerResponse): Promise<void> {
   const requestId = request.headers['x-request-id']?.toString() || randomUUID()
   const url = new URL(request.url ?? '/', 'http://localhost')
   const routedPath = url.pathname === '/api' && url.searchParams.get('route')
@@ -46,7 +47,7 @@ async function handleRequest(service: DesignService, manifestService: ManifestAp
       return
     }
     const body = request.method === 'POST' ? await readJson(request) : {}
-    const route = routes(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history).find((candidate) => candidate.method === request.method && candidate.path.test(routedPath))
+    const route = routes(service, manifestService, gateway, canvasGraph, versioning, copilot, planner, editor, workspaces, history, synchronization).find((candidate) => candidate.method === request.method && candidate.path.test(routedPath))
     if (!route) return writeError(response, requestId, request.method === 'GET' || request.method === 'POST' ? 'NOT_FOUND' : 'METHOD_NOT_ALLOWED', 'Route not found.', request.method === 'GET' || request.method === 'POST' ? 404 : 405)
     const match = route.path.exec(routedPath)
     const result = await route.handler(match?.groups ?? {}, body, request, url, requestId)
@@ -62,7 +63,7 @@ async function handleRequest(service: DesignService, manifestService: ManifestAp
   }
 }
 
-function routes(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService): Route[] {
+function routes(service: DesignService, manifestService?: ManifestApplication, gateway?: AgentGateway, canvasGraph?: CanvasGraphApplication, versioning?: VersioningApplicationService, copilot?: CopilotApplicationService, planner?: CopilotPlanner, editor?: EditorCommandApplicationService, workspaces?: HumanWorkspaceService, history?: EditorHistoryApplicationService, synchronization?: SynchronizationApplicationService): Route[] {
   const routeList: Route[] = [
     { method: 'GET', path: /^\/healthz$/, handler: async () => ({ status: 'ok' }) },
     { method: 'GET', path: /^\/readyz$/, handler: async () => ({ status: 'ready' }) },
@@ -172,6 +173,14 @@ function routes(service: DesignService, manifestService?: ManifestApplication, g
     if (!baseVersionId) throw new HttpInputError('baseVersionId is required.')
     return copilot.generate({ projectId: params.projectId, documentId: params.documentId, pageId: body.pageId as string | undefined, baseVersionId, trustedVersionId: body.trustedVersionId as string | undefined, instruction: body.instruction, selectedNodeIds, author: body.author }, planner)
   } })
+  if (synchronization) routeList.push(
+    { method: 'GET', path: /^\/api\/v1\/projects\/(?<projectId>[^/]+)\/documents\/(?<documentId>[^/]+)\/implementation-status$/, handler: (params) =>
+      synchronization.listImplementationReports(params.projectId, params.documentId)
+    },
+    { method: 'GET', path: /^\/api\/v1\/projects\/(?<projectId>[^/]+)\/documents\/(?<documentId>[^/]+)\/sync-proposals$/, handler: (params) =>
+      synchronization.listSyncProposals(params.projectId, params.documentId)
+    },
+  )
   if (gateway) routeList.push({ method: 'GET', path: /^\/api\/v1\/gateway\/manifest$/, handler: async (_params, _body, request, url, requestId) => {
     const authorization = request.headers.authorization
     const credential = authorization?.startsWith('Bearer ') ? authorization.slice(7) : authorization

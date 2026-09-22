@@ -140,13 +140,15 @@ describe('semantic get_manifest tool', () => {
     expect(source).not.toMatch(/persistence|compileDesignManifest|CanvasElement|zustand|useCanvasStore/)
   })
 
-  it('keeps the existing browser canvas tool suite separate and unchanged at 33 tools', async () => {
+  it('keeps the existing browser canvas tool suite separate and unchanged at 40 tools (33 legacy + 7 canonical cc_ tools added in EMM-101)', async () => {
     const toolDirectory = new URL('../src/mcp/tools/', import.meta.url)
     const files = (await readdir(toolDirectory)).filter((file) => file.endsWith('.ts') && file !== 'index.ts')
     const source = await Promise.all(files.map((file) => readFile(new URL(file, toolDirectory), 'utf8')))
     const names = source.flatMap((contents) => [...contents.matchAll(/name:\s*'([^']+)'/g)].map((match) => match[1]))
-    expect(names).toHaveLength(33)
+    expect(names).toHaveLength(40)
     expect(names).not.toContain('get_manifest')
+    // Verify canonical tools are present
+    expect(names.filter((n) => n.startsWith('cc_'))).toHaveLength(7)
   })
 
   it('does not expose any write capability', () => {

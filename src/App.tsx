@@ -11,6 +11,7 @@ import { HandoffPanel } from './features/handoff'
 import EditorWorkspace from './features/editor/EditorWorkspace'
 import { CapabilityOverview } from './features/overview'
 import NewDesignScreen from './features/home/NewDesignScreen'
+import AgentStatusPanel from './features/agent/AgentStatusPanel'
 
 function WorkspaceState({ title, message, code }: { title: string; message: string; code: string }) {
   return <div className="flex h-full min-h-0 items-center justify-center p-6"><section className="max-w-md rounded-panel border border-border-default bg-panel p-6 shadow-panel" role="status" data-workspace-state={code}><p className="text-sm font-semibold text-text-primary">{title}</p><p className="mt-2 text-sm leading-6 text-text-secondary">{message}</p></section></div>
@@ -102,6 +103,8 @@ function WorkspaceApp() {
           ? <div className="h-full overflow-y-auto p-4"><HandoffPanel /></div>
         : surface === 'assistant' || surface === 'agent-center'
           ? <div className="h-full overflow-y-auto p-4"><CopilotProposalPanel /></div>
+          : surface === 'implementation'
+            ? <div className="h-full overflow-y-auto p-4"><AgentStatusPanel projectId={context.projectId} documentId={context.documentId} /></div>
           : surface === 'overview'
             ? <CapabilityOverview />
             : surface === 'design-system'

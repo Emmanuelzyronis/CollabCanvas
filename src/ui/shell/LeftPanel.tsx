@@ -15,6 +15,7 @@ const NAV_SECTIONS = [
   { label: 'Assets', surface: 'assets' },
   { label: 'Versions', surface: 'versions' },
   { label: 'Handoff', surface: 'handoff' },
+  { label: 'Implementation', surface: 'implementation' },
   { label: 'Assistant', surface: 'assistant' },
 ] as const
 

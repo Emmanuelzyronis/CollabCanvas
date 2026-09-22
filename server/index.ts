@@ -10,6 +10,8 @@ import { loadRuntimeConfig } from './config.js'
 import { CopilotApplicationService } from './application/copilot-service.js'
 import { assistantDescriptor, createCopilotPlanner } from './application/azure-copilot-planner.js'
 import { ManifestApplicationService } from './application/manifest-service.js'
+import { SynchronizationApplicationService } from './application/synchronization-service.js'
+import { MemorySynchronizationRepository } from './persistence/memory-synchronization.js'
 
 const config = loadRuntimeConfig()
 const pool = createPostgresPool(config.databaseUrl)
@@ -21,9 +23,11 @@ const history = new EditorHistoryApplicationService(graphApplication, versionApp
 const editor = new EditorCommandApplicationService(graphApplication, versionApplication, history)
 const workspaces = new HumanWorkspaceService(repository, repository, versionApplication)
 const manifestService = new ManifestApplicationService(repository, repository)
+const syncRepo = new MemorySynchronizationRepository()
+const synchronization = new SynchronizationApplicationService(versionApplication, syncRepo, syncRepo)
 // Azure OpenAI when configured; deterministic planner otherwise.
 const planner = createCopilotPlanner()
-const server = createApiServer(service, manifestService, undefined, graphApplication, versionApplication, new CopilotApplicationService(versionApplication), planner, editor, workspaces, history)
+const server = createApiServer(service, manifestService, undefined, graphApplication, versionApplication, new CopilotApplicationService(versionApplication), planner, editor, workspaces, history, synchronization)
 
 server.listen(config.port, () => {
   console.log(`CollabCanvas API listening on http://localhost:${config.port}`)
