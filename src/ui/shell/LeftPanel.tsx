@@ -1,32 +1,35 @@
 import { useEffect, useState } from 'react'
-import { Divider, IconButton, Panel, Stack, Text } from '../foundation'
-import { Icon } from '../icons'
+import clsx from 'clsx'
 import type { LayersProjection } from '../../graph/graphProjection'
 import LayerTree from '../layers/LayerTree'
 
-/**
- * Product-facing navigation. Labels are designer words; `surface` stays the
- * stable URL key so existing links keep working.
- */
 const NAV_SECTIONS = [
-  { label: 'Overview', surface: 'overview' },
-  { label: 'Canvas', surface: 'canvas' },
-  { label: 'Design system', surface: 'design-system' },
-  { label: 'Assets', surface: 'assets' },
-  { label: 'Versions', surface: 'versions' },
-  { label: 'Handoff', surface: 'handoff' },
-  { label: 'Implementation', surface: 'implementation' },
-  { label: 'Assistant', surface: 'assistant' },
+  { label: 'Canvas',          surface: 'canvas',        icon: canvasIcon() },
+  { label: 'Design system',   surface: 'design-system', icon: tokenIcon() },
+  { label: 'Assets',          surface: 'assets',        icon: assetsIcon() },
+  { label: 'Versions',        surface: 'versions',      icon: versionsIcon() },
+  { label: 'Handoff',         surface: 'handoff',       icon: handoffIcon() },
+  { label: 'Implementation',  surface: 'implementation',icon: codeIcon() },
+  { label: 'Overview',        surface: 'overview',      icon: overviewIcon() },
+  { label: 'Assistant',       surface: 'assistant',     icon: assistantIcon() },
 ] as const
 
-/** Earlier links used an internal surface key; keep them resolving. */
 const SURFACE_ALIASES: Readonly<Record<string, string>> = { 'agent-center': 'assistant' }
+
+function canvasIcon()       { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg> }
+function tokenIcon()        { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="8" r="2.5"/><circle cx="11" cy="8" r="2.5"/></svg> }
+function assetsIcon()       { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg> }
+function versionsIcon()     { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 2"/></svg> }
+function handoffIcon()      { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3l4 5-4 5M3 8h10"/></svg> }
+function codeIcon()         { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 3l-2 10"/></svg> }
+function overviewIcon()     { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 6v4M8 5.5V5"/></svg> }
+function assistantIcon()    { return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H9l-3 2V11H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg> }
 
 export default function LeftPanel({ onClose, layersProjection }: { onClose?: () => void; layersProjection?: LayersProjection }) {
   const sectionFromUrl = () => {
     const raw = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('surface') ?? ''
     const value = SURFACE_ALIASES[raw] ?? raw
-    return NAV_SECTIONS.find((section) => section.surface === value)?.label ?? 'Canvas'
+    return NAV_SECTIONS.find((s) => s.surface === value)?.label ?? 'Canvas'
   }
   const [activeSection, setActiveSection] = useState(sectionFromUrl)
   useEffect(() => {
@@ -46,33 +49,69 @@ export default function LeftPanel({ onClose, layersProjection }: { onClose?: () 
   }
 
   return (
-    <Panel elevation="none" className="flex h-full min-h-0 flex-col rounded-none border-0 bg-panel">
-      <div className="flex min-h-12 items-center justify-between px-3">
-        <Stack gap="1">
-          <Text as="h2" role="label">Project</Text>
-          <Text as="div" role="metadata" muted>Workspace navigation</Text>
-        </Stack>
-        {onClose ? <div className="cc-shell-compact-only"><IconButton id="project-navigation-close" label="Close project navigation" size="sm" onClick={onClose}><Icon name="close" size={16} /></IconButton></div> : null}
-      </div>
-      <Divider />
-      <nav className="min-h-0 flex-1 overflow-y-auto p-3" aria-label="Project sections">
-        <Stack gap="1">
-          {NAV_SECTIONS.map(({ label: item }) => (
-            <button key={item} type="button" onClick={() => navigate(item)} className={`min-h-9 w-full rounded-control px-3 text-left text-sm transition-colors focus-visible:outline-none ${activeSection === item ? 'bg-selected font-medium text-blue-800' : 'text-text-secondary hover:bg-hover hover:text-text-primary'}`} aria-current={activeSection === item ? 'page' : undefined}>
-              {item}
+    <div className="flex h-full min-h-0 flex-col bg-panel">
+      {/* Nav — sits flush at top */}
+      <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Project sections">
+        {onClose && (
+          <div className="flex justify-end px-2 pt-2">
+            <button
+              id="project-navigation-close"
+              type="button"
+              aria-label="Close project navigation"
+              onClick={onClose}
+              className="cc-shell-compact-only h-7 w-7 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cc-indigo-500)]"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="h-3.5 w-3.5">
+                <path d="M4 4l8 8M12 4L4 12" />
+              </svg>
             </button>
-          ))}
-        </Stack>
-        <Divider className="my-4" />
-        <Stack gap="2">
-          <Text as="h3" role="label" muted>Layers</Text>
-          {layersProjection ? <LayerTree projection={layersProjection} /> : (
-            <div className="rounded-card border border-dashed border-border-strong px-3 py-4">
-              <Text role="caption" muted>Layers appear here as you add elements to the canvas.</Text>
-            </div>
-          )}
-        </Stack>
+          </div>
+        )}
+        <div className="space-y-0.5 p-2 pt-2">
+          {NAV_SECTIONS.map(({ label, icon }) => {
+            const active = activeSection === label
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => navigate(label)}
+                aria-current={active ? 'page' : undefined}
+                className={clsx(
+                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cc-indigo-500)]',
+                  active
+                    ? 'bg-[var(--cc-indigo-50)] text-[var(--cc-indigo-700)]'
+                    : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+                )}
+              >
+                <span
+                  className={clsx(
+                    'flex h-5 w-5 shrink-0 items-center justify-center',
+                    active ? 'text-[var(--cc-indigo-600)]' : 'text-text-muted',
+                  )}
+                >
+                  {icon}
+                </span>
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Layers section */}
+        <div className="border-t border-border-subtle px-3 pt-4 pb-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Layers</span>
+          </div>
+          {layersProjection
+            ? <LayerTree projection={layersProjection} />
+            : (
+              <div className="rounded-lg border border-dashed border-border-default px-3 py-4 text-center">
+                <p className="text-xs text-text-muted">Layers appear as you add elements to the canvas.</p>
+              </div>
+            )
+          }
+        </div>
       </nav>
-    </Panel>
+    </div>
   )
 }

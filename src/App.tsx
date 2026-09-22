@@ -12,6 +12,7 @@ import EditorWorkspace from './features/editor/EditorWorkspace'
 import { CapabilityOverview } from './features/overview'
 import NewDesignScreen from './features/home/NewDesignScreen'
 import AgentStatusPanel from './features/agent/AgentStatusPanel'
+import DesignSystemPanel from './features/design-system/DesignSystemPanel'
 
 function WorkspaceState({ title, message, code }: { title: string; message: string; code: string }) {
   return <div className="flex h-full min-h-0 items-center justify-center p-6"><section className="max-w-md rounded-panel border border-border-default bg-panel p-6 shadow-panel" role="status" data-workspace-state={code}><p className="text-sm font-semibold text-text-primary">{title}</p><p className="mt-2 text-sm leading-6 text-text-secondary">{message}</p></section></div>
@@ -52,6 +53,15 @@ function WorkspaceApp() {
       store.zoomToFit()
     }
   }, [context.graph, context.documentId])
+
+  useEffect(() => {
+    const tokens = context.graph?.tokens ?? []
+    const root = document.documentElement
+    for (const token of tokens) {
+      const varName = `--cc-token-${token.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+      root.style.setProperty(varName, String(token.value))
+    }
+  }, [context.graph?.tokens])
 
   useEffect(() => {
     if (!comparisonTarget) {
@@ -108,7 +118,9 @@ function WorkspaceApp() {
           : surface === 'overview'
             ? <CapabilityOverview />
             : surface === 'design-system'
-              ? <div className="h-full overflow-y-auto p-6"><h1 className="text-xl font-semibold text-text-primary">Design system</h1><p className="mt-2 text-sm text-text-secondary">Tokens, typography, and reusable components.</p><div className="mt-6 grid gap-3 md:grid-cols-2">{(context.graph?.tokens ?? []).map((token) => <div key={token.id} className="rounded-card border border-border-default bg-panel p-4"><p className="text-sm font-medium">{token.name}</p><p className="mt-1 text-xs text-text-muted">{token.category}: {typeof token.value === 'string' ? token.value : JSON.stringify(token.value)}</p></div>)}</div></div>
+              ? context.graph && context.documentId
+                ? <DesignSystemPanel documentId={context.documentId} graph={context.graph} onGraphChange={() => context.refreshGraph?.()} />
+                : <div className="flex h-full items-center justify-center p-6 text-sm text-text-secondary">Open a workspace to manage the design system.</div>
               : surface === 'assets'
                 ? <div className="h-full overflow-y-auto p-6"><h1 className="text-xl font-semibold text-text-primary">Assets</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{(context.graph?.assets ?? []).map((asset) => <div key={asset.id} className="rounded-card border border-border-default bg-panel p-4"><p className="text-sm font-medium">{asset.name}</p><p className="mt-1 text-xs text-text-muted">{asset.kind} · {asset.altText}</p></div>)}</div></div>
                 : context.availability === 'GRAPH_AVAILABLE'

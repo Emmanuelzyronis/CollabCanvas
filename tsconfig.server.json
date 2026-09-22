@@ -15,5 +15,5 @@
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["server", "tests", "vitest.config.ts"]
+  "include": ["server", "vitest.config.ts"]
 }

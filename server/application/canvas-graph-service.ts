@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { CreateNodeInput, DesignGraph, DesignNode, NodeType } from '../domain/contracts.js'
+import type { DesignToken, TypographyDefinition } from '../domain/graph-types.js'
 import { DomainError } from '../domain/errors.js'
 import { createNode, deleteNode, duplicateNode, moveNode, updateNode } from '../domain/graph-operations.js'
 import { GraphValidationError, validateDesignGraph } from '../domain/graph-validation.js'
@@ -22,6 +23,14 @@ export interface CanvasGraphApplication {
   duplicateNode(documentId: string, nodeId: string): Promise<DesignGraph>
   /** Restore a previously observed graph state through the guarded mutation path (undo/redo). */
   restoreDesignGraph(documentId: string, graph: DesignGraph): Promise<DesignGraph>
+  /** Design-system token CRUD */
+  upsertToken(documentId: string, token: DesignToken): Promise<DesignGraph>
+  deleteToken(documentId: string, tokenId: string): Promise<DesignGraph>
+  /** Typography CRUD */
+  upsertTypography(documentId: string, def: TypographyDefinition): Promise<DesignGraph>
+  deleteTypography(documentId: string, typographyId: string): Promise<DesignGraph>
+  /** Batch import: merge tokens + typography into the graph */
+  importDesignSystem(documentId: string, patch: { tokens?: DesignToken[]; typography?: TypographyDefinition[] }): Promise<DesignGraph>
 }
 
 type GraphStore = DesignGraphRepository & DesignGraphWriter
@@ -182,6 +191,52 @@ export class CanvasGraphApplicationService implements CanvasGraphApplication {
     return this.mutate(documentId, (graph) => {
       if (!graph.nodes.some((node) => node.id === id)) throw new DomainError('NOT_FOUND', `Node "${id}" was not found.`)
       return duplicateNode(graph, id, () => this.makeId())
+    })
+  }
+
+  async upsertToken(documentId: string, token: DesignToken): Promise<DesignGraph> {
+    if (!token?.id || !token.name || !token.category) throw new DomainError('VALIDATION_ERROR', 'token must have id, name, and category.')
+    return this.mutate(documentId, (g) => {
+      const tokens = Array.isArray(g.tokens) ? g.tokens : []
+      const idx = tokens.findIndex((t) => t.id === token.id)
+      const next = idx >= 0 ? tokens.map((t, i) => (i === idx ? token : t)) : [...tokens, token]
+      return { ...g, tokens: next }
+    })
+  }
+
+  async deleteToken(documentId: string, tokenId: string): Promise<DesignGraph> {
+    if (!tokenId) throw new DomainError('VALIDATION_ERROR', 'tokenId is required.')
+    return this.mutate(documentId, (g) => ({ ...g, tokens: (g.tokens ?? []).filter((t) => t.id !== tokenId) }))
+  }
+
+  async upsertTypography(documentId: string, def: TypographyDefinition): Promise<DesignGraph> {
+    if (!def?.id || !def.name || !def.fontFamily) throw new DomainError('VALIDATION_ERROR', 'typography must have id, name, and fontFamily.')
+    return this.mutate(documentId, (g) => {
+      const typography = Array.isArray(g.typography) ? g.typography : []
+      const idx = typography.findIndex((t) => t.id === def.id)
+      const next = idx >= 0 ? typography.map((t, i) => (i === idx ? def : t)) : [...typography, def]
+      return { ...g, typography: next }
+    })
+  }
+
+  async deleteTypography(documentId: string, typographyId: string): Promise<DesignGraph> {
+    if (!typographyId) throw new DomainError('VALIDATION_ERROR', 'typographyId is required.')
+    return this.mutate(documentId, (g) => ({ ...g, typography: (g.typography ?? []).filter((t) => t.id !== typographyId) }))
+  }
+
+  async importDesignSystem(documentId: string, patch: { tokens?: DesignToken[]; typography?: TypographyDefinition[] }): Promise<DesignGraph> {
+    return this.mutate(documentId, (g) => {
+      let tokens = Array.isArray(g.tokens) ? [...g.tokens] : []
+      for (const t of patch.tokens ?? []) {
+        const idx = tokens.findIndex((x) => x.id === t.id)
+        if (idx >= 0) tokens[idx] = t; else tokens.push(t)
+      }
+      let typography = Array.isArray(g.typography) ? [...g.typography] : []
+      for (const t of patch.typography ?? []) {
+        const idx = typography.findIndex((x) => x.id === t.id)
+        if (idx >= 0) typography[idx] = t; else typography.push(t)
+      }
+      return { ...g, tokens, typography }
     })
   }
 

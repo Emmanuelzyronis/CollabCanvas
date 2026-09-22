@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ColorPicker } from '../ColorPicker'
 import type { InspectorNodeProjection, InspectorProjection } from '../../graph/graphProjection'
 import { defaultAppearance } from '../../graph/canvasProjection'
 import type { DesignNode, JsonObject, TokenReferenceMap } from '../../../server/domain/contracts'
@@ -230,7 +231,6 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
   }
 
   const commitZOrder = (delta: number) => {
-    const siblings = node.ancestry.length === 0 ? [] : []
     void commit({ orderIndex: Math.max(0, node.metadata.orderIndex + delta) })
   }
   const textNodeType = node.metadata.type === 'text' || node.metadata.type === 'heading' || node.metadata.type === 'button'
@@ -297,12 +297,35 @@ function SingleNodeInspector({ node, onUpdateNode }: { node: InspectorNodeProjec
           <label className="grid min-w-0 gap-1 text-xs text-text-secondary">Font<select aria-label="Font" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm text-text-primary" value={fontFamily} disabled={!onUpdateNode || saving} onChange={(event) => { setFontFamily(event.target.value); void commit(visualStyle({ fontFamily: event.target.value })) }}><option>Inter, ui-sans-serif, system-ui, sans-serif</option><option>Georgia, serif</option><option>Arial, sans-serif</option><option>ui-monospace, SFMono-Regular, monospace</option></select></label>
           <div className="grid min-w-0 grid-cols-2 gap-2"><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Size<input aria-label="Font size" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm" value={fontSize} disabled={!onUpdateNode || saving} onChange={(e) => setFontSize(e.target.value)} onBlur={() => commitNumber('fontSize', fontSize, 'properties')} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Weight<select aria-label="Font weight" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm" value={fontWeight} disabled={!onUpdateNode || saving} onChange={(e) => { setFontWeight(e.target.value); void commit({ properties: { ...node.properties, fontWeight: Number(e.target.value) } }) }}><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label></div>
           <div className="grid min-w-0 grid-cols-2 gap-2"><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Line height<input aria-label="Line height" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm" value={lineHeight} disabled={!onUpdateNode || saving} onChange={(e) => setLineHeight(e.target.value)} onBlur={() => commitNumber('lineHeight', lineHeight)} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Alignment<select aria-label="Text alignment" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-3 text-sm" value={textAlign} disabled={!onUpdateNode || saving} onChange={(e) => { setTextAlign(e.target.value); void commit({ properties: { ...node.properties, textAlign: e.target.value as 'left' | 'center' | 'right' } }) }}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label></div>
-          <label className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">Color<input aria-label="Text color" type="color" className="h-9 w-14 rounded border border-border-default bg-panel" value={textColor.startsWith('#') ? textColor : '#0f172a'} disabled={!onUpdateNode || saving} onChange={(e) => { setTextColor(e.target.value); void commit(visualStyle({ textColor: e.target.value })) }} /></label>
+          <div className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">
+            Color
+            <ColorPicker
+              value={textColor.startsWith('#') ? textColor : '#0f172a'}
+              onChange={(hex) => { setTextColor(hex); void commit(visualStyle({ textColor: hex })) }}
+              label="Text color"
+            />
+          </div>
         </div>
       </InspectorSection> : null}
 
       {node.metadata.type !== 'text' && node.metadata.type !== 'heading' ? <InspectorSection title="Appearance">
-        <div className="grid gap-3"><label className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">Fill<input aria-label="Fill" type="color" className="h-9 w-14 rounded border border-border-default bg-panel" value={fill.startsWith('#') ? fill : '#ffffff'} disabled={!onUpdateNode || saving} onChange={(e) => { setFill(e.target.value); void commit(visualStyle({ fill: e.target.value })) }} /></label><label className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">Border<input aria-label="Border" type="color" className="h-9 w-14 rounded border border-border-default bg-panel" value={stroke.startsWith('#') ? stroke : '#64748b'} disabled={!onUpdateNode || saving} onChange={(e) => { setStroke(e.target.value); void commit(visualStyle({ stroke: e.target.value })) }} /></label><div className="grid min-w-0 grid-cols-3 gap-2"><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Width<input aria-label="Border width" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={strokeWidth} onChange={(e) => setStrokeWidth(e.target.value)} onBlur={() => commitNumber('strokeWidth', strokeWidth)} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Radius<input aria-label="Radius" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={borderRadius} onChange={(e) => setBorderRadius(e.target.value)} onBlur={() => commitNumber('borderRadius', borderRadius)} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Opacity<input aria-label="Opacity" inputMode="decimal" min="0" max="1" step="0.05" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={opacity} onChange={(e) => setOpacity(e.target.value)} onBlur={() => commitNumber('opacity', opacity)} /></label></div></div>
+        <div className="grid gap-3">
+          <div className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">
+            Fill
+            <ColorPicker
+              value={fill.startsWith('#') ? fill : '#ffffff'}
+              onChange={(hex) => { setFill(hex); void commit(visualStyle({ fill: hex })) }}
+              label="Fill color"
+            />
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 text-xs text-text-secondary">
+            Border
+            <ColorPicker
+              value={stroke.startsWith('#') ? stroke : '#64748b'}
+              onChange={(hex) => { setStroke(hex); void commit(visualStyle({ stroke: hex })) }}
+              label="Border color"
+            />
+          </div><div className="grid min-w-0 grid-cols-3 gap-2"><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Width<input aria-label="Border width" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={strokeWidth} onChange={(e) => setStrokeWidth(e.target.value)} onBlur={() => commitNumber('strokeWidth', strokeWidth)} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Radius<input aria-label="Radius" inputMode="decimal" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={borderRadius} onChange={(e) => setBorderRadius(e.target.value)} onBlur={() => commitNumber('borderRadius', borderRadius)} /></label><label className="grid min-w-0 gap-1 text-xs text-text-secondary">Opacity<input aria-label="Opacity" inputMode="decimal" min="0" max="1" step="0.05" className="min-h-9 w-full min-w-0 rounded-control border border-border-default bg-panel px-2 text-sm" value={opacity} onChange={(e) => setOpacity(e.target.value)} onBlur={() => commitNumber('opacity', opacity)} /></label></div></div>
       </InspectorSection> : null}
 
       <InspectorSection title="Layout">

@@ -33,6 +33,7 @@ export default function EditorWorkspace() {
   const workspace = useWorkspaceContext()
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [copilotMounted, setCopilotMounted] = useState(false)
+  const [ariaPrompt, setAriaPrompt] = useState('')
   const [error, setError] = useState<string>()
   const [savedAt, setSavedAt] = useState<string>()
 
@@ -158,6 +159,17 @@ export default function EditorWorkspace() {
     return () => window.clearTimeout(timer)
   }, [error])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const prompt = params.get('aria')
+    if (!prompt) return
+    setAriaPrompt(decodeURIComponent(prompt))
+    setCopilotMounted(true)
+    setCopilotOpen(true)
+    params.delete('aria')
+    window.history.replaceState({}, '', `?${params.toString()}`)
+  }, [])
+
   const openCopilot = () => {
     setCopilotMounted(true)
     setCopilotOpen(true)
@@ -193,7 +205,7 @@ export default function EditorWorkspace() {
       <div className="absolute bottom-4 right-4 z-30 flex flex-col items-end gap-2" data-copilot-region="true">
         {copilotMounted ? (
           <div data-copilot-panel-host="true" hidden={!copilotOpen} className="w-[min(24rem,calc(100vw-2rem))]">
-            <CopilotProposalPanel />
+            <CopilotProposalPanel initialInstruction={ariaPrompt} />
           </div>
         ) : null}
         <button

@@ -26,10 +26,10 @@ function elements(count: number): string {
   return count === 1 ? '1 element' : `${count} elements`
 }
 
-export default function CopilotProposalPanel() {
+export default function CopilotProposalPanel({ initialInstruction = '' }: { initialInstruction?: string }) {
   const workspace = useWorkspaceContext()
   const { ask, busy, clear, error, preview, ready, selectedNodeIds } = useAssistantProposal()
-  const [instruction, setInstruction] = useState('')
+  const [instruction, setInstruction] = useState(initialInstruction)
   const [assistant, setAssistant] = useState<AssistantStatus>()
 
   useEffect(() => {

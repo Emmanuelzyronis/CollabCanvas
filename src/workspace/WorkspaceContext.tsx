@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { DesignGraph, DesignDocument, DesignNode, Page, Project } from '../../server/domain/contracts'
 import type { DesignProposal, DesignVersion, VersionComparison } from '../../server/domain/version-types'
 import type { CopilotProposalPreview } from '../../server/domain/copilot-types'
@@ -46,6 +46,7 @@ export interface WorkspaceContextValue extends WorkspaceIdentifiers {
   readonly command?: (command: EditorCommandName, payload: Record<string, unknown>) => Promise<{ graph: DesignGraph; nodeId: string | null }>
   readonly undo?: () => Promise<EditorHistoryResult>
   readonly redo?: () => Promise<EditorHistoryResult>
+  readonly refreshGraph?: () => void
 }
 
 export interface VersionComparisonTarget {
@@ -197,6 +198,8 @@ function initialState(identifiers: WorkspaceIdentifiers | null): WorkspaceContex
 export function WorkspaceProvider({ children, initialIdentifiers }: { children: ReactNode; initialIdentifiers?: WorkspaceIdentifiers | null }) {
   const [identifiers, setIdentifiers] = useState<WorkspaceIdentifiers | null>(() => initialIdentifiers ?? (typeof window === 'undefined' ? null : resolveWorkspaceIdentifiers(window.location)))
   const [context, setContext] = useState<WorkspaceContextValue>(() => initialState(identifiers))
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const refreshGraph = useCallback(() => setRefreshNonce((n) => n + 1), [])
 
   // Publish the canonical graph for non-React consumers (WebMCP tools). The
   // workspace remains the owner; this is a read-only publication point.
@@ -245,7 +248,7 @@ export function WorkspaceProvider({ children, initialIdentifiers }: { children: 
       active = false
       controller.abort()
     }
-  }, [identifiers])
+  }, [identifiers, refreshNonce])
 
   const value = useMemo<WorkspaceContextValue>(() => {
     const command = async (name: EditorCommandName, payload: Record<string, unknown>) => {
@@ -285,6 +288,7 @@ export function WorkspaceProvider({ children, initialIdentifiers }: { children: 
       command,
       undo: () => history('undo'),
       redo: () => history('redo'),
+      refreshGraph,
       resizeNode: async (nodeId, width, height, x, y) => {
         await command('resize', { nodeId, width, height, ...(x !== undefined ? { x } : {}), ...(y !== undefined ? { y } : {}) })
       },
@@ -292,7 +296,7 @@ export function WorkspaceProvider({ children, initialIdentifiers }: { children: 
         await command('update', { nodeId, patch })
       },
     }
-  }, [context, identifiers])
+  }, [context, identifiers, refreshGraph])
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }
 

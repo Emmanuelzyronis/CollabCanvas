@@ -164,6 +164,36 @@ function routes(service: DesignService, manifestService?: ManifestApplication, g
       if (!versioning) throw new DomainError('GRAPH_UNAVAILABLE', 'The version query service is not configured.')
       return versioning.compareVersions(params.fromVersionId, params.toVersionId)
     } },
+    /* ---- Design-system token CRUD ---- */
+    { method: 'POST', path: /^\/api\/v1\/documents\/(?<documentId>[^/]+)\/tokens$/, handler: (params, body) => {
+      if (!canvasGraph) throw new DomainError('GRAPH_UNAVAILABLE', 'Canvas graph service is not configured.')
+      const token = body.token as Record<string, unknown>
+      if (!token || typeof token !== 'object') throw new HttpInputError('body.token must be an object.')
+      return canvasGraph.upsertToken(params.documentId, token as never)
+    } },
+    { method: 'DELETE', path: /^\/api\/v1\/documents\/(?<documentId>[^/]+)\/tokens\/(?<tokenId>[^/]+)$/, handler: (params) => {
+      if (!canvasGraph) throw new DomainError('GRAPH_UNAVAILABLE', 'Canvas graph service is not configured.')
+      return canvasGraph.deleteToken(params.documentId, params.tokenId)
+    } },
+    /* ---- Typography CRUD ---- */
+    { method: 'POST', path: /^\/api\/v1\/documents\/(?<documentId>[^/]+)\/typography$/, handler: (params, body) => {
+      if (!canvasGraph) throw new DomainError('GRAPH_UNAVAILABLE', 'Canvas graph service is not configured.')
+      const def = body.typography as Record<string, unknown>
+      if (!def || typeof def !== 'object') throw new HttpInputError('body.typography must be an object.')
+      return canvasGraph.upsertTypography(params.documentId, def as never)
+    } },
+    { method: 'DELETE', path: /^\/api\/v1\/documents\/(?<documentId>[^/]+)\/typography\/(?<typographyId>[^/]+)$/, handler: (params) => {
+      if (!canvasGraph) throw new DomainError('GRAPH_UNAVAILABLE', 'Canvas graph service is not configured.')
+      return canvasGraph.deleteTypography(params.documentId, params.typographyId)
+    } },
+    /* ---- Batch import ---- */
+    { method: 'POST', path: /^\/api\/v1\/documents\/(?<documentId>[^/]+)\/import$/, handler: (params, body) => {
+      if (!canvasGraph) throw new DomainError('GRAPH_UNAVAILABLE', 'Canvas graph service is not configured.')
+      const tokens = Array.isArray(body.tokens) ? body.tokens : undefined
+      const typography = Array.isArray(body.typography) ? body.typography : undefined
+      if (!tokens && !typography) throw new HttpInputError('body must contain tokens and/or typography arrays.')
+      return canvasGraph.importDesignSystem(params.documentId, { tokens, typography })
+    } },
   ]
   if (copilot && planner) routeList.push({ method: 'POST', path: /^\/api\/v1\/projects\/(?<projectId>[^/]+)\/documents\/(?<documentId>[^/]+)\/copilot\/proposals$/, handler: async (params, body) => {
     if (typeof params.projectId !== 'string' || typeof params.documentId !== 'string' || params.projectId.length === 0 || params.documentId.length === 0) throw new HttpInputError('projectId and documentId are required.')
