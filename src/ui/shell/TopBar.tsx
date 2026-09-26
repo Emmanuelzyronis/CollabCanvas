@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import clsx from 'clsx'
 import { useCanvasStore } from '../../store/store'
 import ViewportToggle from '../../features/editor/ViewportToggle'
 import type { ShellWorkspaceContext } from './AppShell'
+import { toast } from '../../hooks/use-toast'
 
 interface TopBarProps {
   onToggleLeft: () => void
@@ -35,6 +37,23 @@ export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpe
   const availability = workspace?.availability
   const undo = () => useCanvasStore.getState().undo()
   const redo = () => useCanvasStore.getState().redo()
+  const [shareBusy, setShareBusy] = useState(false)
+
+  const handleShare = async () => {
+    setShareBusy(true)
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      toast('Link copied to clipboard', 'success')
+    } catch {
+      toast('Could not copy link — try copying the address bar', 'error')
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  const handlePublish = () => {
+    toast('Publish is coming soon — export via Handoff in the meantime', 'info')
+  }
 
   const ariaOnline = availability === 'GRAPH_AVAILABLE'
 
@@ -145,7 +164,9 @@ export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpe
         {/* Share */}
         <button
           type="button"
-          className="hidden h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors sm:flex focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--cc-indigo-500)]"
+          onClick={() => void handleShare()}
+          disabled={shareBusy}
+          className="hidden h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors sm:flex focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--cc-indigo-500)] disabled:opacity-60"
           style={{
             background: 'rgba(255,255,255,0.08)',
             color: 'var(--cc-chrome-text)',
@@ -162,6 +183,7 @@ export default function TopBar({ onToggleLeft, onToggleRight, leftOpen, rightOpe
         {/* Publish */}
         <button
           type="button"
+          onClick={handlePublish}
           className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--cc-indigo-500)]"
           style={{ background: 'var(--cc-indigo-600)' }}
         >

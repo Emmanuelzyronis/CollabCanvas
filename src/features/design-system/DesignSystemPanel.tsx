@@ -52,10 +52,12 @@ function ColorsTab({ documentId, graph, onGraphChange }: Props) {
   const [newName, setNewName] = useState('')
   const [newValue, setNewValue] = useState('#4f46e5')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
 
   const add = async () => {
     if (!newName.trim()) return
     setBusy(true)
+    setError(undefined)
     try {
       const next = await upsertToken(documentId, {
         id: `token_${nanoid(8)}`,
@@ -66,25 +68,48 @@ function ColorsTab({ documentId, graph, onGraphChange }: Props) {
       onGraphChange?.(next)
       setNewName('')
       setNewValue('#4f46e5')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The color token could not be saved.')
     } finally { setBusy(false) }
   }
 
   const remove = async (tokenId: string) => {
-    const next = await deleteToken(documentId, tokenId)
-    onGraphChange?.(next)
+    setError(undefined)
+    try {
+      const next = await deleteToken(documentId, tokenId)
+      onGraphChange?.(next)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The token could not be removed.')
+    }
   }
 
   const update = async (token: DesignToken, color: string) => {
-    const next = await upsertToken(documentId, { ...token, value: color })
-    onGraphChange?.(next)
+    try {
+      const next = await upsertToken(documentId, { ...token, value: color })
+      onGraphChange?.(next)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The color could not be updated.')
+    }
   }
 
   const colors = colorTokens(graph)
 
   return (
     <div className="space-y-4">
-      {/* Existing swatches */}
-      {colors.length > 0 && (
+      {error && (
+        <p role="alert" className="rounded-lg border px-3 py-2 text-[11px]" style={{ background: '#fff1f2', borderColor: '#fecdd3', color: 'var(--cc-error)' }}>
+          {error}
+        </p>
+      )}
+
+      {colors.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed py-8 text-center" style={{ borderColor: 'var(--cc-border-default)' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7" style={{ color: 'var(--cc-text-muted)' }}>
+            <circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>
+          </svg>
+          <p className="text-xs" style={{ color: 'var(--cc-text-muted)' }}>No color tokens yet — add one below.</p>
+        </div>
+      ) : (
         <div>
           <SectionLabel>Color tokens</SectionLabel>
           <div className="space-y-1.5">
@@ -152,28 +177,49 @@ function TypographyTab({ documentId, graph, onGraphChange }: Props) {
   const [form, setForm] = useState<Omit<TypographyDefinition, 'id'>>({ name: '', ...DEFAULT_TYPO })
   const [busy, setBusy] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [error, setError] = useState<string>()
 
   const filtered = GOOGLE_FONT_SUGGESTIONS.filter((f) => f.toLowerCase().includes(form.fontFamily.toLowerCase()))
 
   const add = async () => {
     if (!form.name.trim()) return
     setBusy(true)
+    setError(undefined)
     try {
       const next = await upsertTypography(documentId, { id: `typo_${nanoid(8)}`, ...form })
       onGraphChange?.(next)
       setForm({ name: '', ...DEFAULT_TYPO })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The type style could not be saved.')
     } finally { setBusy(false) }
   }
 
   const remove = async (id: string) => {
-    const next = await deleteTypography(documentId, id)
-    onGraphChange?.(next)
+    setError(undefined)
+    try {
+      const next = await deleteTypography(documentId, id)
+      onGraphChange?.(next)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The type style could not be removed.')
+    }
   }
 
   return (
     <div className="space-y-5">
+      {error && (
+        <p role="alert" className="rounded-lg border px-3 py-2 text-[11px]" style={{ background: '#fff1f2', borderColor: '#fecdd3', color: 'var(--cc-error)' }}>
+          {error}
+        </p>
+      )}
       {/* Existing */}
-      {(graph.typography ?? []).length > 0 && (
+      {(graph.typography ?? []).length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed py-8 text-center" style={{ borderColor: 'var(--cc-border-default)' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7" style={{ color: 'var(--cc-text-muted)' }}>
+            <path d="M4 7V5h16v2M9 20h6M12 5v15"/>
+          </svg>
+          <p className="text-xs" style={{ color: 'var(--cc-text-muted)' }}>No type styles yet — add one below.</p>
+        </div>
+      ) : (
         <div>
           <SectionLabel>Type styles</SectionLabel>
           <div className="space-y-2">
@@ -300,12 +346,14 @@ function SpacingTab({ documentId, graph, onGraphChange }: Props) {
   const [newValue, setNewValue] = useState('8')
   const [category, setCategory] = useState<'spacing' | 'radius' | 'shadow' | 'border'>('spacing')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
 
   const tokens = spacingTokens(graph)
 
   const add = async () => {
     if (!newName.trim()) return
     setBusy(true)
+    setError(undefined)
     try {
       const next = await upsertToken(documentId, {
         id: `token_${nanoid(8)}`,
@@ -315,18 +363,41 @@ function SpacingTab({ documentId, graph, onGraphChange }: Props) {
       })
       onGraphChange?.(next)
       setNewName('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The token could not be saved.')
     } finally { setBusy(false) }
   }
 
   const remove = async (tokenId: string) => {
-    const next = await deleteToken(documentId, tokenId)
-    onGraphChange?.(next)
+    setError(undefined)
+    try {
+      const next = await deleteToken(documentId, tokenId)
+      onGraphChange?.(next)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The token could not be removed.')
+    }
   }
 
   const categoryGroups = TOKEN_CATEGORIES.filter((c) => c !== 'color') as readonly string[]
+  const hasTokens = tokens.length > 0
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p role="alert" className="rounded-lg border px-3 py-2 text-[11px]" style={{ background: '#fff1f2', borderColor: '#fecdd3', color: 'var(--cc-error)' }}>
+          {error}
+        </p>
+      )}
+
+      {!hasTokens && (
+        <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed py-8 text-center" style={{ borderColor: 'var(--cc-border-default)' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7" style={{ color: 'var(--cc-text-muted)' }}>
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+          </svg>
+          <p className="text-xs" style={{ color: 'var(--cc-text-muted)' }}>No tokens yet — add spacing, radius, shadow or border tokens below.</p>
+        </div>
+      )}
+
       {categoryGroups.map((cat) => {
         const group = tokens.filter((t) => t.category === cat)
         if (group.length === 0) return null

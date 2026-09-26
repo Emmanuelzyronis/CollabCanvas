@@ -13,6 +13,7 @@ import { CapabilityOverview } from './features/overview'
 import NewDesignScreen from './features/home/NewDesignScreen'
 import AgentStatusPanel from './features/agent/AgentStatusPanel'
 import DesignSystemPanel from './features/design-system/DesignSystemPanel'
+import { ToastContainer } from './ui/toast'
 
 function WorkspaceState({ title, message, code }: { title: string; message: string; code: string }) {
   return <div className="flex h-full min-h-0 items-center justify-center p-6"><section className="max-w-md rounded-panel border border-border-default bg-panel p-6 shadow-panel" role="status" data-workspace-state={code}><p className="text-sm font-semibold text-text-primary">{title}</p><p className="mt-2 text-sm leading-6 text-text-secondary">{message}</p></section></div>
@@ -122,7 +123,33 @@ function WorkspaceApp() {
                 ? <DesignSystemPanel documentId={context.documentId} graph={context.graph} onGraphChange={() => context.refreshGraph?.()} />
                 : <div className="flex h-full items-center justify-center p-6 text-sm text-text-secondary">Open a workspace to manage the design system.</div>
               : surface === 'assets'
-                ? <div className="h-full overflow-y-auto p-6"><h1 className="text-xl font-semibold text-text-primary">Assets</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{(context.graph?.assets ?? []).map((asset) => <div key={asset.id} className="rounded-card border border-border-default bg-panel p-4"><p className="text-sm font-medium">{asset.name}</p><p className="mt-1 text-xs text-text-muted">{asset.kind} · {asset.altText}</p></div>)}</div></div>
+                ? (
+                  <div className="h-full overflow-y-auto p-6">
+                    <h1 className="text-xl font-semibold text-text-primary">Assets</h1>
+                    {(context.graph?.assets ?? []).length === 0 ? (
+                      <div className="mt-12 flex flex-col items-center gap-3 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-dashed border-border-default">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-text-muted">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">No assets yet</p>
+                          <p className="mt-1 max-w-xs text-xs text-text-muted">Add images to canvas elements and they will appear here for reuse across your design.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        {(context.graph?.assets ?? []).map((asset) => (
+                          <div key={asset.id} className="rounded-card border border-border-default bg-panel p-4">
+                            <p className="text-sm font-medium">{asset.name}</p>
+                            <p className="mt-1 text-xs text-text-muted">{asset.kind} · {asset.altText}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
                 : context.availability === 'GRAPH_AVAILABLE'
                   ? <EditorWorkspace />
                   : <WorkspaceState {...state!} />}
@@ -130,5 +157,10 @@ function WorkspaceApp() {
 }
 
 export default function App() {
-  return <WorkspaceProvider><WorkspaceApp /></WorkspaceProvider>
+  return (
+    <>
+      <WorkspaceProvider><WorkspaceApp /></WorkspaceProvider>
+      <ToastContainer />
+    </>
+  )
 }

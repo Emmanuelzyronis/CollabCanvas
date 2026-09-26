@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ImplementationStatusReport, SynchronizationProposal } from '../../../server/domain/synchronization-types'
 import { fetchImplementationReports, fetchSyncProposals, WorkspaceApiError } from '../../application/commands'
-import { Badge, Button, Panel, Stack, Text } from '../../ui/foundation'
+import { Badge, Button, Panel, Skeleton, Stack, Text } from '../../ui/foundation'
 
 const STATUS_TONE: Record<string, 'success' | 'warning' | 'neutral'> = {
   implemented: 'success',
@@ -47,7 +47,12 @@ export default function AgentStatusPanel({ projectId, documentId }: { projectId:
         </div>
 
         {loading ? (
-          <Text muted>Loading implementation status…</Text>
+          <Stack gap="2">
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-14 w-full" />
+          </Stack>
         ) : error ? (
           <Text role="body" className="text-red-700" aria-live="assertive">{error}</Text>
         ) : (

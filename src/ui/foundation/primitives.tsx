@@ -87,3 +87,7 @@ export function Panel({ elevation = 'panel', className, children, ...props }: { 
 export function Card({ className, children, ...props }: { className?: string; children?: ReactNode } & HTMLAttributes<HTMLDivElement>) {
   return <div className={clsx('rounded-card border border-border-subtle bg-panel p-4 text-text-primary shadow-subtle', className)} {...props}>{children}</div>
 }
+
+export function Skeleton({ className, ...props }: { className?: string } & HTMLAttributes<HTMLDivElement>) {
+  return <div className={clsx('animate-pulse rounded-card bg-border-subtle', className)} {...props} />
+}

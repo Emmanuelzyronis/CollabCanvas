@@ -8,6 +8,38 @@ You draw, arrange, and comment. Your agent — **Aria** — creates shapes, gene
 
 ---
 
+## Demo
+
+> Interactive terminal demo — [view the full case study](https://emmanuelzyronis.vercel.app/work/collabcanvas)
+
+```text
+# Aria agent session via WebMCP
+
+$ curl -X POST http://localhost:5173/api/model-context \
+  -d '{"tool":"canvas.createShape","args":{"type":"rectangle","fill":"#6366F1","label":"Primary"}}' | jq .
+
+{
+  "id": "shape_001",
+  "type": "rectangle",
+  "fill": "#6366F1",
+  "label": "Primary",
+  "author": "agent",
+  "version": 1
+}
+
+Aria: Created shape_001. Adding 5 more swatches ...
+  ✓ shape_002  Indigo   #818CF8
+  ✓ shape_003  Violet   #A78BFA
+  ✓ shape_004  Success  #34D399
+  ✓ shape_005  Warning  #FBBF24
+  ✓ shape_006  Danger   #F87171
+
+Canvas: 6 swatches — human and agent on the same live document.
+33 WebMCP tools on document.modelContext
+```
+
+---
+
 ## 🧭 Current strategy — Human Editor First
 
 CollabCanvas is being developed through **fast vertical slices**. The
